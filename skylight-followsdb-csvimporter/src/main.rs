@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bar = indicatif::ProgressBar::new_spinner();
     bar.set_style(
         indicatif::ProgressStyle::with_template(
-            "{spinner} [{elapsed_precise}] [{per_sec} it/s] {msg}",
+            "{spinner} [{elapsed_precise}] [{per_sec} it/s] [{pos}] {msg}",
         )
         .unwrap(),
     );
