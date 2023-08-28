@@ -3,6 +3,7 @@ members = [
     "atproto-repo",
     "skylight-crawler",
     "skylight-followsdb",
+    "skylight-followsdb-csvimporter",
     "skylight-ingester",
     "skylight-plcmirrorer",
 ]
