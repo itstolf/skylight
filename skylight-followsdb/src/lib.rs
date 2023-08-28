@@ -23,10 +23,7 @@ where
     K: 'static,
     V: 'static,
 {
-    if let Some(db) = env.open_database(Some(name))? {
-        return Ok(db);
-    }
-    Ok(env.create_database(Some(name))?)
+    Ok(env.create_database(&mut env.write_txn()?, Some(name))?)
 }
 
 pub struct Schema {

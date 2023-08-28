@@ -28,10 +28,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .max_dbs(10)
         .map_size(1 * 1024 * 1024 * 1024 * 1024);
     unsafe {
-        env_options.flag(heed::flags::Flags::MdbNoLock);
-        env_options.flag(heed::flags::Flags::MdbNoMemInit);
-        env_options.flag(heed::flags::Flags::MdbWriteMap);
-        env_options.flag(heed::flags::Flags::MdbMapAsync);
+        env_options.flags(
+            heed::EnvFlags::NO_LOCK
+                | heed::EnvFlags::NO_MEM_INIT
+                | heed::EnvFlags::WRITE_MAP
+                | heed::EnvFlags::MAP_ASYNC,
+        );
     }
 
     let env = env_options.open(args.db_path).unwrap();

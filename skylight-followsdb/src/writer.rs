@@ -66,7 +66,9 @@ fn prune_index(
                 .ok_or_else(|| crate::Error::MalformedKey(key.to_vec()))?
                 .to_string(),
         );
-        iter.del_current()?;
+        unsafe {
+            iter.del_current()?;
+        }
     }
 
     Ok(rkeys)
