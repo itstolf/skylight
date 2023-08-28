@@ -15,9 +15,6 @@ struct Args {
 
     #[arg()]
     csv_path: std::path::PathBuf,
-
-    #[arg(long, default_value_t = 10000)]
-    commit_every: u64,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,7 +30,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .unwrap(),
     );
-
     let mut tx = db.write_txn()?;
     for row in csv::ReaderBuilder::new()
         .has_headers(false)
@@ -49,11 +45,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &row.subject_did,
         )?;
         bar.inc(1);
-
-        if bar.position() % args.commit_every == 0 {
-            tx.commit()?;
-            tx = db.write_txn()?;
-        }
     }
     tx.commit()?;
     bar.finish();
