@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "atproto-repo",
+    "skylight-crawler",
+    "skylight-followsdb",
+    "skylight-ingester",
+    "skylight-plcmirrorer",
+]
