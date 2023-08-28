@@ -40,7 +40,7 @@ impl Db {
     pub fn open_or_create(path: &std::path::Path) -> Result<Self, Error> {
         let env = heed::EnvOpenOptions::new()
             .max_dbs(10)
-            .map_size(1 * 1024 * 1024 * 1024 * 1024 * 1024)
+            .map_size(1 * 1024 * 1024 * 1024 * 1024)
             .open(path)?;
         let follows_records = open_or_create_database(&env, "follows")?;
         let follows_actor_subject_rkey_index =
