@@ -22,11 +22,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let f = std::io::BufReader::new(std::fs::File::open(&args.csv_path)?);
 
-    let env = heed::EnvOpenOptions::new()
+    let mut env_options = heed::EnvOpenOptions::new();
+
+    env_options
         .max_dbs(10)
-        .map_size(1 * 1024 * 1024 * 1024 * 1024)
-        .open(args.db_path)
-        .unwrap();
+        .map_size(1 * 1024 * 1024 * 1024 * 1024);
+    unsafe {
+        env_options.flag(heed::flags::Flags::MdbNoLock);
+        env_options.flag(heed::flags::Flags::MdbNoMemInit);
+        env_options.flag(heed::flags::Flags::MdbWriteMap);
+        env_options.flag(heed::flags::Flags::MdbMapAsync);
+    }
+
+    let env = env_options.open(args.db_path).unwrap();
 
     let schema = skylight_followsdb::Schema::open_or_create(&env)?;
 
