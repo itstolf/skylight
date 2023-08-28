@@ -5,22 +5,17 @@ pub fn add_follow(
     actor: &str,
     subject: &str,
 ) -> Result<(), crate::Error> {
-    let follows_actor_subject_rkey_index =
-        crate::index::open_or_create_follows_actor_subject_rkey_index(&db.env)?;
-    let follows_subject_actor_rkey_index =
-        crate::index::open_or_create_follows_subject_actor_rkey_index(&db.env)?;
-
     db.follows_records.put(
         tx,
         rkey.as_bytes(),
         &crate::records::make_record(actor, subject)[..],
     )?;
-    follows_actor_subject_rkey_index.put(
+    db.follows_actor_subject_rkey_index.put(
         tx,
         &crate::index::make_key(&[actor, subject, rkey])[..],
         &(),
     )?;
-    follows_subject_actor_rkey_index.put(
+    db.follows_subject_actor_rkey_index.put(
         tx,
         &crate::index::make_key(&[subject, actor, rkey])[..],
         &(),
@@ -30,11 +25,6 @@ pub fn add_follow(
 }
 
 pub fn delete_follow(db: &crate::Db, tx: &mut heed::RwTxn, rkey: &str) -> Result<(), crate::Error> {
-    let follows_actor_subject_rkey_index =
-        crate::index::open_or_create_follows_actor_subject_rkey_index(&db.env)?;
-    let follows_subject_actor_rkey_index =
-        crate::index::open_or_create_follows_subject_actor_rkey_index(&db.env)?;
-
     let raw = if let Some(raw) = db.follows_records.get(tx, rkey.as_bytes())? {
         raw
     } else {
@@ -45,9 +35,9 @@ pub fn delete_follow(db: &crate::Db, tx: &mut heed::RwTxn, rkey: &str) -> Result
         .ok_or_else(|| crate::Error::MalformedRecord(rkey.to_string()))?;
 
     db.follows_records.delete(tx, rkey.as_bytes())?;
-    follows_actor_subject_rkey_index
+    db.follows_actor_subject_rkey_index
         .delete(tx, &crate::index::make_key(&[&actor, &subject, rkey]))?;
-    follows_subject_actor_rkey_index
+    db.follows_subject_actor_rkey_index
         .delete(tx, &crate::index::make_key(&[&subject, &actor, rkey]))?;
 
     Ok(())

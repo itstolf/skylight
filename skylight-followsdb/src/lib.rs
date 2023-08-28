@@ -15,12 +15,6 @@ pub enum Error {
     MalformedRecord(String),
 }
 
-pub fn initialize(env: &heed::Env) -> Result<(), Error> {
-    records::initialize(env)?;
-    index::initialize(env)?;
-    Ok(())
-}
-
 fn open_or_create_database<K, V>(
     env: &heed::Env,
     name: &str,
@@ -45,11 +39,11 @@ pub struct Db {
 impl Db {
     pub fn open_or_create(path: &std::path::Path) -> Result<Self, Error> {
         let env = heed::EnvOpenOptions::new().max_dbs(10).open(path)?;
-        let follows_records = records::open_or_create_follows_records(&env)?;
+        let follows_records = open_or_create_database(&env, "follows")?;
         let follows_actor_subject_rkey_index =
-            index::open_or_create_follows_actor_subject_rkey_index(&env)?;
+            open_or_create_database(&env, "follows:actor:subject:rkey")?;
         let follows_subject_actor_rkey_index =
-            index::open_or_create_follows_subject_actor_rkey_index(&env)?;
+            open_or_create_database(&env, "follows:subject:actor:rkey")?;
         Ok(Db {
             env,
             follows_records,

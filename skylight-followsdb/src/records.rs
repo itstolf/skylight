@@ -18,14 +18,3 @@ pub fn parse_record(k: &[u8]) -> Option<(String, String)> {
         },
     )
 }
-
-const FOLLOWS_RECORDS: &str = "follows";
-
-pub fn open_or_create_follows_records(env: &heed::Env) -> Result<Records, crate::Error> {
-    Ok(crate::open_or_create_database(env, FOLLOWS_RECORDS)?)
-}
-
-pub fn initialize(env: &heed::Env) -> Result<(), crate::Error> {
-    let _: Records = env.create_database(Some(FOLLOWS_RECORDS))?;
-    Ok(())
-}
