@@ -30,13 +30,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .unwrap(),
     );
+    let mut tx = db.write_txn()?;
     for row in csv::ReaderBuilder::new()
         .has_headers(false)
         .from_reader(f)
         .deserialize::<Record>()
     {
         let row = row?;
-        let mut tx = db.write_txn()?;
         skylight_followsdb::writer::add_follow(
             &db,
             &mut tx,
@@ -44,9 +44,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &row.actor_did,
             &row.subject_did,
         )?;
-        tx.commit()?;
         bar.inc(1);
     }
+    tx.commit()?;
     bar.finish();
 
     Ok(())
