@@ -1,21 +1,21 @@
 pub fn add_follow(
-    db: &crate::Db,
+    schema: &crate::Schema,
     tx: &mut heed::RwTxn,
     rkey: &str,
     actor: &str,
     subject: &str,
 ) -> Result<(), crate::Error> {
-    db.follows_records.put(
+    schema.follows_records.put(
         tx,
         rkey.as_bytes(),
         &crate::records::make_record(actor, subject)[..],
     )?;
-    db.follows_actor_subject_rkey_index.put(
+    schema.follows_actor_subject_rkey_index.put(
         tx,
         &crate::index::make_key(&[actor, subject, rkey])[..],
         &(),
     )?;
-    db.follows_subject_actor_rkey_index.put(
+    schema.follows_subject_actor_rkey_index.put(
         tx,
         &crate::index::make_key(&[subject, actor, rkey])[..],
         &(),
@@ -24,8 +24,12 @@ pub fn add_follow(
     Ok(())
 }
 
-pub fn delete_follow(db: &crate::Db, tx: &mut heed::RwTxn, rkey: &str) -> Result<(), crate::Error> {
-    let raw = if let Some(raw) = db.follows_records.get(tx, rkey.as_bytes())? {
+pub fn delete_follow(
+    schema: &crate::Schema,
+    tx: &mut heed::RwTxn,
+    rkey: &str,
+) -> Result<(), crate::Error> {
+    let raw = if let Some(raw) = schema.follows_records.get(tx, rkey.as_bytes())? {
         raw
     } else {
         return Ok(());
@@ -34,10 +38,12 @@ pub fn delete_follow(db: &crate::Db, tx: &mut heed::RwTxn, rkey: &str) -> Result
     let (actor, subject) = crate::records::parse_record(&raw)
         .ok_or_else(|| crate::Error::MalformedRecord(rkey.to_string()))?;
 
-    db.follows_records.delete(tx, rkey.as_bytes())?;
-    db.follows_actor_subject_rkey_index
+    schema.follows_records.delete(tx, rkey.as_bytes())?;
+    schema
+        .follows_actor_subject_rkey_index
         .delete(tx, &crate::index::make_key(&[&actor, &subject, rkey]))?;
-    db.follows_subject_actor_rkey_index
+    schema
+        .follows_subject_actor_rkey_index
         .delete(tx, &crate::index::make_key(&[&subject, &actor, rkey]))?;
 
     Ok(())
@@ -66,31 +72,38 @@ fn prune_index(
     Ok(rkeys)
 }
 
-pub fn delete_actor(db: &crate::Db, tx: &mut heed::RwTxn, actor: &str) -> Result<(), crate::Error> {
+pub fn delete_actor(
+    schema: &crate::Schema,
+    tx: &mut heed::RwTxn,
+    actor: &str,
+) -> Result<(), crate::Error> {
     let prefix = crate::index::make_key_prefix(&[actor]);
 
     for rkey in std::iter::empty()
         .chain(prune_index(
             tx,
-            &db.follows_actor_subject_rkey_index,
+            &schema.follows_actor_subject_rkey_index,
             &prefix,
         )?)
         .chain(prune_index(
             tx,
-            &db.follows_subject_actor_rkey_index,
+            &schema.follows_subject_actor_rkey_index,
             &prefix,
         )?)
     {
         let (actor, subject) = crate::records::parse_record(
-            &db.follows_records
+            &schema
+                .follows_records
                 .get(tx, rkey.as_bytes())?
                 .ok_or_else(|| crate::Error::MalformedKey(rkey.as_bytes().to_vec()))?,
         )
         .ok_or_else(|| crate::Error::MalformedRecord(rkey.to_string()))?;
-        db.follows_records.delete(tx, rkey.as_bytes())?;
-        db.follows_actor_subject_rkey_index
+        schema.follows_records.delete(tx, rkey.as_bytes())?;
+        schema
+            .follows_actor_subject_rkey_index
             .delete(tx, &crate::index::make_key(&[&actor, &subject, &rkey]))?;
-        db.follows_subject_actor_rkey_index
+        schema
+            .follows_subject_actor_rkey_index
             .delete(tx, &crate::index::make_key(&[&subject, &actor, &rkey]))?;
     }
 

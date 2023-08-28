@@ -1,9 +1,10 @@
 pub fn get_followers(
-    db: &crate::Db,
+    schema: &crate::Schema,
     tx: &heed::RoTxn,
     actor: &str,
 ) -> Result<Vec<String>, crate::Error> {
-    db.follows_actor_subject_rkey_index
+    schema
+        .follows_actor_subject_rkey_index
         .prefix_iter(tx, &crate::index::make_key_prefix(&[actor]))?
         .map(|r| {
             r.map_err(|e| e.into()).and_then(|(k, ())| {
@@ -16,11 +17,12 @@ pub fn get_followers(
 }
 
 pub fn get_followees(
-    db: &crate::Db,
+    schema: &crate::Schema,
     tx: &heed::RoTxn,
     actor: &str,
 ) -> Result<Vec<String>, crate::Error> {
-    db.follows_subject_actor_rkey_index
+    schema
+        .follows_subject_actor_rkey_index
         .prefix_iter(tx, &crate::index::make_key_prefix(&[actor]))?
         .map(|r| {
             r.map_err(|e| e.into()).and_then(|(k, ())| {

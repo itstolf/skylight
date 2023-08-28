@@ -21,7 +21,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     let f = std::io::BufReader::new(std::fs::File::open(&args.csv_path)?);
-    let db = skylight_followsdb::Db::open_or_create(&args.db_path)?;
+
+    let env = heed::EnvOpenOptions::new()
+        .max_dbs(10)
+        .map_size(1 * 1024 * 1024 * 1024 * 1024)
+        .open(args.db_path)
+        .unwrap();
+
+    let schema = skylight_followsdb::Schema::open_or_create(&env)?;
 
     let bar = indicatif::ProgressBar::new_spinner();
     bar.set_style(
@@ -30,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .unwrap(),
     );
-    let mut tx = db.write_txn()?;
+    let mut tx = env.write_txn()?;
     for row in csv::ReaderBuilder::new()
         .has_headers(false)
         .from_reader(f)
@@ -38,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let row = row?;
         skylight_followsdb::writer::add_follow(
-            &db,
+            &schema,
             &mut tx,
             &row.rkey,
             &row.actor_did,
