@@ -9,8 +9,10 @@ edition = "2021"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 heed = "0.20.0-alpha.4"
+serde = { version = "1", features = ["derive"] }
 skylight-followsdb = { path = "../skylight-followsdb" }
 skylight-plcdb = { path = "../skylight-plcdb" }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
+warp = "0.3"

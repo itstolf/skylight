@@ -1,10 +1,14 @@
 use clap::Parser;
+use warp::Filter;
 
 mod query;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    #[arg(long, default_value = "[::]:1991")]
+    listen: std::net::SocketAddr,
+
     #[arg(long)]
     plcdb_path: std::path::PathBuf,
 
@@ -53,5 +57,8 @@ async fn main() -> Result<(), anyhow::Error> {
         skylight_followsdb::Schema::open(&followsdb_env, &tx)?
     };
 
+    let routes = warp::path!("hello" / String).map(|name| format!("Hello, {}!", name));
+
+    warp::serve(routes).run(args.listen).await;
     Ok(())
 }
