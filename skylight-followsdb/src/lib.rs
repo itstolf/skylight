@@ -76,24 +76,39 @@ mod test {
         let schema = Schema::create(&env, &mut tx).unwrap();
         writer::add_follow(&schema, &mut tx, "test", "user1", "user2").unwrap();
         assert_eq!(
-            reader::get_followees(&schema, &mut tx, "user1").unwrap(),
+            reader::get_followees(&schema, &mut tx, "user1")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec!["user2"]
         );
         assert_eq!(
-            reader::get_followees(&schema, &mut tx, "user2").unwrap(),
+            reader::get_followees(&schema, &mut tx, "user2")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec![] as Vec<&str>
         );
         assert_eq!(
-            reader::get_followers(&schema, &mut tx, "user1").unwrap(),
+            reader::get_followers(&schema, &mut tx, "user1")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec![] as Vec<&str>
         );
         assert_eq!(
-            reader::get_followers(&schema, &mut tx, "user2").unwrap(),
+            reader::get_followers(&schema, &mut tx, "user2")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec!["user1"]
         );
         writer::delete_actor(&schema, &mut tx, "user1").unwrap();
         assert_eq!(
-            reader::get_followers(&schema, &mut tx, "user2").unwrap(),
+            reader::get_followers(&schema, &mut tx, "user2")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec![] as Vec<&str>
         );
     }
@@ -112,36 +127,60 @@ mod test {
         writer::add_follow(&schema, &mut tx, "test", "user1", "user2").unwrap();
         writer::add_follow(&schema, &mut tx, "test2", "user2", "user1").unwrap();
         assert_eq!(
-            reader::get_followees(&schema, &mut tx, "user1").unwrap(),
+            reader::get_followees(&schema, &mut tx, "user1")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec!["user2"]
         );
         assert_eq!(
-            reader::get_followees(&schema, &mut tx, "user2").unwrap(),
+            reader::get_followees(&schema, &mut tx, "user2")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec!["user1"] as Vec<&str>
         );
         assert_eq!(
-            reader::get_followers(&schema, &mut tx, "user1").unwrap(),
+            reader::get_followers(&schema, &mut tx, "user1")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec!["user2"] as Vec<&str>
         );
         assert_eq!(
-            reader::get_followers(&schema, &mut tx, "user2").unwrap(),
+            reader::get_followers(&schema, &mut tx, "user2")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec!["user1"]
         );
         writer::delete_follow(&schema, &mut tx, "test").unwrap();
         assert_eq!(
-            reader::get_followees(&schema, &mut tx, "user1").unwrap(),
+            reader::get_followees(&schema, &mut tx, "user1")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec![] as Vec<&str>
         );
         assert_eq!(
-            reader::get_followees(&schema, &mut tx, "user2").unwrap(),
+            reader::get_followees(&schema, &mut tx, "user2")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec!["user1"] as Vec<&str>
         );
         assert_eq!(
-            reader::get_followers(&schema, &mut tx, "user1").unwrap(),
+            reader::get_followers(&schema, &mut tx, "user1")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec!["user2"] as Vec<&str>
         );
         assert_eq!(
-            reader::get_followers(&schema, &mut tx, "user2").unwrap(),
+            reader::get_followers(&schema, &mut tx, "user2")
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
             vec![] as Vec<&str>
         );
     }

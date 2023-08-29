@@ -186,6 +186,8 @@ async fn main() -> Result<(), anyhow::Error> {
                                         |e| warp::reject::custom(CustomReject(e.into())),
                                     )?;
                                 let mutuals = query::mutuals(&followsdb_schema, &tx, &q.did)
+                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
+                                    .collect::<Result<Vec<_>, skylight_followsdb::Error>>()
                                     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
                                 Ok::<_, warp::Rejection>(warp::reply::json(&MutualsResponse {
                                     mutuals,

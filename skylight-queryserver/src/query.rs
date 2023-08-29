@@ -49,22 +49,28 @@ pub fn akas(
     Ok(r)
 }
 
-pub fn mutuals(
-    schema: &skylight_followsdb::Schema,
-    tx: &heed::RoTxn,
-    actor: &str,
-) -> Result<Vec<String>, skylight_followsdb::Error> {
+pub fn mutuals<'txn>(
+    schema: &'txn skylight_followsdb::Schema,
+    tx: &'txn heed::RoTxn,
+    actor: &'txn str,
+) -> Result<
+    impl Iterator<Item = Result<String, skylight_followsdb::Error>> + 'txn,
+    skylight_followsdb::Error,
+> {
     Ok(
-        skylight_followsdb::reader::get_followees(schema, tx, actor)?
-            .into_iter()
-            .filter_map(|subject| {
-                match skylight_followsdb::reader::is_following(schema, tx, &subject, actor) {
-                    Ok(true) => Some(Ok(subject)),
-                    Ok(false) => None,
-                    Err(e) => Some(Err(e)),
+        skylight_followsdb::reader::get_followees(schema, tx, actor)?.filter_map(|subject| {
+            let subject = match subject {
+                Ok(subject) => subject,
+                Err(e) => {
+                    return Some(Err(e));
                 }
-            })
-            .collect::<Result<Vec<String>, _>>()?,
+            };
+            match skylight_followsdb::reader::is_following(schema, tx, &subject, actor) {
+                Ok(true) => Some(Ok(subject)),
+                Ok(false) => None,
+                Err(e) => Some(Err(e)),
+            }
+        }),
     )
 }
 
@@ -73,19 +79,26 @@ pub fn neighborhood(
     tx: &heed::RoTxn,
     did: &str,
 ) -> Result<Vec<(String, Vec<String>)>, skylight_followsdb::Error> {
-    let ms = mutuals(schema, tx, did)?;
+    let ms = mutuals(schema, tx, did)?.collect::<Result<Vec<_>, _>>()?;
     let ms_set = ms
         .iter()
         .cloned()
         .collect::<std::collections::HashSet<String>>();
     ms.into_iter()
         .map(|subject| {
-            mutuals(schema, tx, &subject).map(|ms2| {
-                (subject, {
-                    ms2.into_iter()
-                        .filter(|d| ms_set.contains(d.as_str()))
-                        .collect::<Vec<_>>()
+            mutuals(schema, tx, &subject).and_then(|ms2| {
+                ms2.filter_map(|d| match d {
+                    Ok(d) => {
+                        if ms_set.contains(d.as_str()) {
+                            Some(Ok(d))
+                        } else {
+                            None
+                        }
+                    }
+                    Err(e) => Some(Err(e)),
                 })
+                .collect::<Result<Vec<_>, _>>()
+                .map(|ms2| (subject.clone(), ms2))
             })
         })
         .collect::<Result<Vec<(String, Vec<String>)>, _>>()
@@ -161,7 +174,7 @@ pub fn find_mutuals_path(
             return Ok(None);
         }
 
-        let muts = mutuals(schema, tx, &did)?;
+        let muts = mutuals(schema, tx, &did)?.collect::<Result<Vec<String>, _>>()?;
         if max_mutuals > 0 && muts.len() > max_mutuals {
             continue;
         }
