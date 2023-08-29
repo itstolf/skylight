@@ -24,12 +24,22 @@ fn main() -> Result<(), anyhow::Error> {
     let errored_db = env
         .open_database::<heed::types::Str, heed::types::Str>(&tx, Some("crawler_errored"))?
         .unwrap();
+    let meta_db = env
+        .open_database::<heed::types::CowSlice<u8>, heed::types::CowSlice<u8>>(
+            &tx,
+            Some("crawler_meta"),
+        )?
+        .unwrap();
     let schema = skylight_followsdb::Schema::open(&env, &tx)?;
 
     println!("follows: {}", schema.follows_records.len(&tx)?);
     println!(
         "entries queued: {}",
         queued_db.len(&tx)? + pending_db.len(&tx)?
+    );
+    println!(
+        "cursor: {}",
+        String::from_utf8_lossy(&meta_db.get(&tx, "cursor".as_bytes())?.unwrap())
     );
     println!("errors:");
     for r in errored_db.iter(&tx)? {
