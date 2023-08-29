@@ -127,6 +127,10 @@ pub fn find_mutuals_path(
     max_depth: usize,
     max_mutuals: usize,
 ) -> Result<Option<Vec<String>>, skylight_followsdb::Error> {
+    if source == target {
+        return Ok(Some(vec![source.to_string()]));
+    }
+
     let mut source_q = std::collections::VecDeque::from([(source.to_string(), 0usize)]);
     let mut source_visited = std::collections::HashMap::from([(source.to_string(), None)]);
 
