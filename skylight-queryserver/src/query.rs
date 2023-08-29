@@ -71,9 +71,9 @@ pub fn mutuals(
 pub fn neighborhood(
     schema: &skylight_followsdb::Schema,
     tx: &heed::RoTxn,
-    actor: &str,
+    did: &str,
 ) -> Result<Vec<(String, Vec<String>)>, skylight_followsdb::Error> {
-    let ms = mutuals(schema, tx, actor)?;
+    let ms = mutuals(schema, tx, did)?;
     let ms_set = ms
         .iter()
         .cloned()

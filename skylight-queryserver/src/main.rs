@@ -70,6 +70,20 @@ async fn main() -> Result<(), anyhow::Error> {
         also_known_as: Vec<String>,
     }
 
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct NeighborhoodQuery {
+        did: String,
+    }
+    #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct NeighborhoodResponse {
+        #[serde(rename = "n")]
+        nodes: Vec<String>,
+        #[serde(rename = "e")]
+        edges: Vec<Vec<usize>>,
+    }
+
     let routes = warp::get().and(
         warp::path("_").and(
             warp::path::end()
@@ -131,13 +145,45 @@ async fn main() -> Result<(), anyhow::Error> {
                             }
                         }
                     }))
-                .or(warp::path("neighborhood").and(warp::path::end()).and_then({
-                    let followsdb_env = followsdb_env.clone();
-                    move || {
+                .or(warp::path("neighborhood")
+                    .and(warp::path::end())
+                    .and(warp::query::<NeighborhoodQuery>())
+                    .and_then({
                         let followsdb_env = followsdb_env.clone();
-                        async move { Ok::<_, warp::Rejection>("b") }
-                    }
-                })),
+                        move |q: NeighborhoodQuery| {
+                            let followsdb_env = followsdb_env.clone();
+                            async move {
+                                let tx = followsdb_env
+                                    .read_txn()
+                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                let followsdb_schema =
+                                    skylight_followsdb::Schema::open(&followsdb_env, &tx).map_err(
+                                        |e| warp::reject::custom(CustomReject(e.into())),
+                                    )?;
+                                let neighborhood =
+                                    query::neighborhood(&followsdb_schema, &tx, &q.did).map_err(
+                                        |e| warp::reject::custom(CustomReject(e.into())),
+                                    )?;
+                                let node_to_index = neighborhood
+                                    .iter()
+                                    .map(|(k, _)| k.clone())
+                                    .enumerate()
+                                    .map(|(k, v)| (v, k))
+                                    .collect::<std::collections::HashMap<String, usize>>();
+                                Ok::<_, warp::Rejection>(warp::reply::json(&NeighborhoodResponse {
+                                    nodes: neighborhood.iter().map(|(k, _)| k.clone()).collect(),
+                                    edges: neighborhood
+                                        .iter()
+                                        .map(|(_, v)| {
+                                            v.iter()
+                                                .flat_map(|n| node_to_index.get(n).cloned())
+                                                .collect()
+                                        })
+                                        .collect(),
+                                }))
+                            }
+                        }
+                    })),
         ),
     );
 
