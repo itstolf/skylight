@@ -29,14 +29,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_size(1 * 1024 * 1024 * 1024 * 1024);
     unsafe {
         env_options.flags(
-            heed::EnvFlags::NO_LOCK
-                | heed::EnvFlags::NO_MEM_INIT
-                | heed::EnvFlags::WRITE_MAP
-                | heed::EnvFlags::MAP_ASYNC,
+            heed::EnvFlags::NO_LOCK | heed::EnvFlags::NO_SYNC | heed::EnvFlags::NO_META_SYNC,
         );
     }
 
-    let env = env_options.open(args.db_path).unwrap();
+    let env = env_options.open(args.db_path)?;
 
     let schema = skylight_followsdb::Schema::open_or_create(&env)?;
 
@@ -64,6 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         bar.inc(1);
     }
     tx.commit()?;
+    env.force_sync()?;
     bar.finish();
 
     Ok(())
