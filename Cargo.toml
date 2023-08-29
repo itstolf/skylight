@@ -7,4 +7,5 @@ members = [
     "skylight-followsdb-ingester",
     "skylight-plcdb",
     "skylight-plcdb-ingester",
+    "skylight-queryserver",
 ]
