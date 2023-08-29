@@ -9,6 +9,9 @@ use tracing::Instrument;
 struct Args {
     #[arg(long)]
     db_path: std::path::PathBuf,
+
+    #[arg(long, default_value = "wss://bsky.social")]
+    pds_host: String,
 }
 
 type MetaDB = heed::Database<heed::types::CowSlice<u8>, heed::types::CowSlice<u8>>;
@@ -46,7 +49,7 @@ async fn main() -> Result<(), anyhow::Error> {
     };
     tracing::info!(message = "cursor", cursor = cursor);
 
-    let mut url = "wss://bsky.social/xrpc/com.atproto.sync.subscribeRepos".to_string();
+    let mut url = format!("{}/xrpc/com.atproto.sync.subscribeRepos", args.pds_host);
     if cursor >= 0 {
         url.push_str(&format!("?cursor={cursor}"));
     }

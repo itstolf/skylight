@@ -1,0 +1,20 @@
+[package]
+name = "skylight-plcdb-ingester"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+atproto-repo = { path = "../atproto-repo" }
+clap = { version = "4", features = ["derive"] }
+heed = "0.20.0-alpha.4"
+governor = "0.6"
+reqwest = "0.11"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+skylight-plcdb = { path = "../skylight-plcdb" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"

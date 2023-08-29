@@ -6,5 +6,5 @@ members = [
     "skylight-followsdb-csvimporter",
     "skylight-ingester",
     "skylight-plcdb",
-    "skylight-plcdb-mirrorer",
+    "skylight-plcdb-ingester",
 ]
