@@ -57,7 +57,14 @@ async fn main() -> Result<(), anyhow::Error> {
         skylight_followsdb::Schema::open(&followsdb_env, &tx)?
     };
 
-    let routes = warp::path!("hello" / String).map(|name| format!("Hello, {}!", name));
+    let routes = warp::get().and(
+        warp::path("_").and(
+            warp::path::end()
+                .and_then(|| async move { Err::<&str, _>(warp::reject::not_found()) })
+                .or(warp::path("aka").and_then(|| async move { Ok::<_, warp::Rejection>("a") }))
+                .or(warp::path("whois").and_then(|| async move { Ok::<_, warp::Rejection>("b") })),
+        ),
+    );
 
     warp::serve(routes).run(args.listen).await;
     Ok(())
