@@ -27,7 +27,7 @@ async fn worker_main(
     client: reqwest::Client,
     rl: std::sync::Arc<RateLimiter>,
     queued_notify: std::sync::Arc<tokio::sync::Notify>,
-    env: std::sync::Arc<heed::Env>,
+    env: heed::Env,
     schema: skylight_followsdb::Schema,
     queued_db: heed::Database<heed::types::Str, heed::types::Unit>,
     pending_db: heed::Database<heed::types::Str, heed::types::Unit>,
@@ -50,7 +50,7 @@ async fn worker_main(
         };
 
         if let Err(err) = {
-            let env = std::sync::Arc::clone(&env);
+            let env = env.clone();
             let rl = std::sync::Arc::clone(&rl);
             let pds_host = pds_host.clone();
             let client = client.clone();
@@ -145,11 +145,6 @@ async fn main() -> Result<(), anyhow::Error> {
     env_options
         .max_dbs(10)
         .map_size(1 * 1024 * 1024 * 1024 * 1024);
-    unsafe {
-        env_options.flags(
-            heed::EnvFlags::NO_LOCK | heed::EnvFlags::NO_SYNC | heed::EnvFlags::NO_META_SYNC,
-        );
-    }
     let env = env_options.open(args.db_path)?;
     let mut tx = env.write_txn()?;
     let schema = skylight_followsdb::Schema::create(&env, &mut tx)?;
@@ -191,8 +186,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let queued_notify = std::sync::Arc::new(tokio::sync::Notify::new());
     queued_notify.notify_waiters();
 
-    let env = std::sync::Arc::new(env);
-
     let client = reqwest::Client::new();
 
     for i in 0..args.num_workers {
@@ -201,7 +194,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let client = client.clone();
             let rl = std::sync::Arc::clone(&rl);
             let queued_notify = std::sync::Arc::clone(&queued_notify);
-            let env = std::sync::Arc::clone(&env);
+            let env = env.clone();
             let schema = schema.clone();
             let queued_db = queued_db.clone();
             let pending_db = pending_db.clone();

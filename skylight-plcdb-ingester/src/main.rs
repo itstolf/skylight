@@ -27,11 +27,6 @@ async fn main() -> Result<(), anyhow::Error> {
     env_options
         .max_dbs(10)
         .map_size(1 * 1024 * 1024 * 1024 * 1024);
-    unsafe {
-        env_options.flags(
-            heed::EnvFlags::NO_LOCK | heed::EnvFlags::NO_SYNC | heed::EnvFlags::NO_META_SYNC,
-        );
-    }
     let env = env_options.open(args.db_path)?;
     let mut tx = env.write_txn()?;
     let schema = skylight_plcdb::Schema::create(&env, &mut tx)?;
