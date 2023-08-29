@@ -9,17 +9,34 @@ pub enum Error {
 
     #[error("malformed key: {0:?}")]
     MalformedKey(Vec<u8>),
+
+    #[error("missing database: {0}")]
+    MissingDatabase(String),
 }
 
 pub struct Schema {
-    did_aka_index: index::Index,
-    aka_did_index: index::Index,
+    pub did_aka_index: index::Index,
+    pub aka_did_index: index::Index,
 }
 
 impl Schema {
     pub fn create(env: &heed::Env, tx: &mut heed::RwTxn) -> Result<Self, Error> {
         let did_aka_index = env.create_database(tx, Some("did:aka"))?;
         let aka_did_index = env.create_database(tx, Some("aka:did"))?;
+
+        Ok(Self {
+            did_aka_index,
+            aka_did_index,
+        })
+    }
+
+    pub fn open(env: &heed::Env, tx: &heed::RoTxn) -> Result<Self, Error> {
+        let did_aka_index = env
+            .open_database(tx, Some("did:aka"))?
+            .ok_or_else(|| Error::MissingDatabase("did:aka".to_string()))?;
+        let aka_did_index = env
+            .open_database(tx, Some("aka:did"))?
+            .ok_or_else(|| Error::MissingDatabase("aka:did".to_string()))?;
 
         Ok(Self {
             did_aka_index,

@@ -9,3 +9,4 @@ edition = "2021"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 heed = "0.20.0-alpha.4"
+skylight-followsdb = { path = "../skylight-followsdb" }

@@ -24,7 +24,9 @@ fn main() -> Result<(), anyhow::Error> {
     let errored_db = env
         .open_database::<heed::types::Str, heed::types::Str>(&tx, Some("crawler_errored"))?
         .unwrap();
+    let schema = skylight_followsdb::Schema::open(&env, &tx)?;
 
+    println!("follows: {}", schema.follows_records.len(&tx)?);
     println!(
         "entries queued: {}",
         queued_db.len(&tx)? + pending_db.len(&tx)?

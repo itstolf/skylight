@@ -13,13 +13,16 @@ pub enum Error {
 
     #[error("malformed record: {0:?}")]
     MalformedRecord(String),
+
+    #[error("missing database: {0}")]
+    MissingDatabase(String),
 }
 
 #[derive(Clone)]
 pub struct Schema {
-    follows_records: records::Records,
-    follows_actor_subject_rkey_index: index::Index,
-    follows_subject_actor_rkey_index: index::Index,
+    pub follows_records: records::Records,
+    pub follows_actor_subject_rkey_index: index::Index,
+    pub follows_subject_actor_rkey_index: index::Index,
 }
 
 impl Schema {
@@ -29,6 +32,24 @@ impl Schema {
             env.create_database(tx, Some("follows:actor:subject:rkey"))?;
         let follows_subject_actor_rkey_index =
             env.create_database(tx, Some("follows:subject:actor:rkey"))?;
+
+        Ok(Self {
+            follows_records,
+            follows_actor_subject_rkey_index,
+            follows_subject_actor_rkey_index,
+        })
+    }
+
+    pub fn open(env: &heed::Env, tx: &heed::RoTxn) -> Result<Self, Error> {
+        let follows_records = env
+            .open_database(tx, Some("follows"))?
+            .ok_or_else(|| Error::MissingDatabase("follows".to_string()))?;
+        let follows_actor_subject_rkey_index = env
+            .open_database(tx, Some("follows:actor:subject:rkey"))?
+            .ok_or_else(|| Error::MissingDatabase("follows:actor:subject:rkey".to_string()))?;
+        let follows_subject_actor_rkey_index = env
+            .open_database(tx, Some("follows:subject:actor:rkey"))?
+            .ok_or_else(|| Error::MissingDatabase("follows:subject:actor:rkey".to_string()))?;
 
         Ok(Self {
             follows_records,
