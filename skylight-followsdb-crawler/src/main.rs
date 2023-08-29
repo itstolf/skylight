@@ -211,7 +211,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     pending_db,
                     errored_db,
                 )
-                .instrument(tracing::info_span!("worker {}", i))
+                .instrument(tracing::info_span!("worker", i))
                 .await
                 .unwrap();
             }
