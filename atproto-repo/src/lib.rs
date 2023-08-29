@@ -1,5 +1,5 @@
 pub mod blockstore;
-mod dag_cbor;
+pub mod dagcbor;
 pub mod mst;
 
 pub use blockstore::load;

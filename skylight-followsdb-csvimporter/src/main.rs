@@ -23,7 +23,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let f = std::io::BufReader::new(std::fs::File::open(&args.csv_path)?);
 
     let mut env_options = heed::EnvOpenOptions::new();
-
     env_options
         .max_dbs(10)
         .map_size(1 * 1024 * 1024 * 1024 * 1024);
@@ -32,9 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             heed::EnvFlags::NO_LOCK | heed::EnvFlags::NO_SYNC | heed::EnvFlags::NO_META_SYNC,
         );
     }
-
     let env = env_options.open(args.db_path)?;
-
     let mut tx = env.write_txn()?;
     let schema = skylight_followsdb::Schema::create(&env, &mut tx)?;
 

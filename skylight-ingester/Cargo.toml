@@ -6,3 +6,18 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1"
+atproto-repo = { path = "../atproto-repo" }
+byteorder = "1"
+ciborium = "0.2"
+clap = { version = "4", features = ["derive"] }
+futures = "0.3.28"
+heed = "0.20.0-alpha.4"
+rs-car = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+skylight-followsdb = { path = "../skylight-followsdb" }
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.18", features = ["native-tls"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"

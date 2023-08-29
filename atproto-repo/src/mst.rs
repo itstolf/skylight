@@ -7,16 +7,16 @@ struct Entry {
     key_suffix: Vec<u8>,
 
     #[serde(rename = "v")]
-    value: crate::dag_cbor::DagCborCid,
+    value: crate::dagcbor::DagCborCid,
 
     #[serde(rename = "t")]
-    right: Option<crate::dag_cbor::DagCborCid>,
+    right: Option<crate::dagcbor::DagCborCid>,
 }
 
 #[derive(Debug, serde::Deserialize, PartialEq)]
 struct Node {
     #[serde(rename = "l")]
-    left: Option<crate::dag_cbor::DagCborCid>,
+    left: Option<crate::dagcbor::DagCborCid>,
 
     #[serde(rename = "e")]
     entries: Vec<Entry>,

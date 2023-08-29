@@ -4,8 +4,8 @@ use futures_util::StreamExt;
 struct SignedCommit {
     did: String,
     version: u8,
-    prev: Option<crate::dag_cbor::DagCborCid>,
-    data: crate::dag_cbor::DagCborCid,
+    prev: Option<crate::dagcbor::DagCborCid>,
+    data: crate::dagcbor::DagCborCid,
     sig: Vec<u8>,
 }
 
