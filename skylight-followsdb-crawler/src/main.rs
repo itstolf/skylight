@@ -38,6 +38,7 @@ async fn worker_main(
 ) -> Result<(), anyhow::Error> {
     loop {
         queued_notify.notified().await;
+        tracing::info!("wakeup");
 
         loop {
             let did = {
@@ -53,96 +54,97 @@ async fn worker_main(
                 did
             };
 
-            if let Err(err) =
-                {
-                    let env = env.clone();
-                    let rl = std::sync::Arc::clone(&rl);
-                    let pds_host = pds_host.clone();
-                    let client = client.clone();
-                    let schema = schema.clone();
-                    let did = did.clone();
-                    (move || async move {
-                rl.until_ready().await;
-                let repo = tokio::time::timeout(
-                    std::time::Duration::from_secs(30 * 60),
-                    atproto_repo::load(
-                        &mut tokio::time::timeout(
-                            std::time::Duration::from_secs(10 * 60),
-                            client
-                                .get(format!(
-                                    "{}/xrpc/com.atproto.sync.getCheckout?did={}",
-                                    pds_host, did
-                                ))
-                                .send(),
-                        )
-                        .await??
-                        .error_for_status()?
-                        .bytes_stream()
-                        .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                        .into_async_read(),
-                        true,
-                    ),
-                )
-                .await??;
-
-                let mut records = vec![];
-                for (key, cid) in repo.key_and_cids() {
-                    let key = String::from_utf8_lossy(key);
-                    let (collection, rkey) = match key.splitn(2, '/').collect::<Vec<_>>()[..] {
-                        [collection, rkey] => (collection, rkey),
-                        _ => {
-                            continue;
-                        }
-                    };
-
-                    if collection != "app.bsky.graph.follow" {
-                        continue;
-                    }
-
-                    let block = if let Some(block) = repo.get_by_cid(cid) {
-                        block
-                    } else {
-                        continue;
-                    };
-
-                    #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
-                    #[serde(rename_all = "camelCase")]
-                    struct Record {
-                        created_at: String,
-                        subject: String,
-                    }
-
-                    let record: Record = match ciborium::from_reader(std::io::Cursor::new(block)) {
-                        Ok(record) => record,
-                        Err(e) => {
-                            tracing::error!(error = format!("ciborium::from_reader: {e:?}"));
-                            continue;
-                        }
-                    };
-                    records.push((rkey.to_string(), record));
-                }
-
-                let n = records.len();
-                let mut tx = env.write_txn()?;
-                for (rkey, record) in records {
-                    // Crash if we can't write to followsdb.
-                    skylight_followsdb::writer::add_follow(
-                        &schema,
-                        &mut tx,
-                        &rkey,
-                        &did,
-                        &record.subject,
+            if let Err(err) = {
+                let env = env.clone();
+                let rl = std::sync::Arc::clone(&rl);
+                let pds_host = pds_host.clone();
+                let client = client.clone();
+                let schema = schema.clone();
+                let did = did.clone();
+                (move || async move {
+                    rl.until_ready().await;
+                    let repo = tokio::time::timeout(
+                        std::time::Duration::from_secs(30 * 60),
+                        atproto_repo::load(
+                            &mut tokio::time::timeout(
+                                std::time::Duration::from_secs(10 * 60),
+                                client
+                                    .get(format!(
+                                        "{}/xrpc/com.atproto.sync.getCheckout?did={}",
+                                        pds_host, did
+                                    ))
+                                    .send(),
+                            )
+                            .await??
+                            .error_for_status()?
+                            .bytes_stream()
+                            .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                            .into_async_read(),
+                            true,
+                        ),
                     )
-                    .expect("skylight_followsdb::writer::add_follow");
-                }
-                pending_db.delete(&mut tx, &did)?;
-                tx.commit()?;
-                tracing::info!(action = "repo", did = did, n = n);
-                Ok::<_, anyhow::Error>(())
-            })()
-            .await
-                }
-            {
+                    .await??;
+
+                    let mut records = vec![];
+                    for (key, cid) in repo.key_and_cids() {
+                        let key = String::from_utf8_lossy(key);
+                        let (collection, rkey) = match key.splitn(2, '/').collect::<Vec<_>>()[..] {
+                            [collection, rkey] => (collection, rkey),
+                            _ => {
+                                continue;
+                            }
+                        };
+
+                        if collection != "app.bsky.graph.follow" {
+                            continue;
+                        }
+
+                        let block = if let Some(block) = repo.get_by_cid(cid) {
+                            block
+                        } else {
+                            continue;
+                        };
+
+                        #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+                        #[serde(rename_all = "camelCase")]
+                        struct Record {
+                            created_at: String,
+                            subject: String,
+                        }
+
+                        let record: Record =
+                            match ciborium::from_reader(std::io::Cursor::new(block)) {
+                                Ok(record) => record,
+                                Err(e) => {
+                                    tracing::error!(
+                                        error = format!("ciborium::from_reader: {e:?}")
+                                    );
+                                    continue;
+                                }
+                            };
+                        records.push((rkey.to_string(), record));
+                    }
+
+                    let n = records.len();
+                    let mut tx = env.write_txn()?;
+                    for (rkey, record) in records {
+                        // Crash if we can't write to followsdb.
+                        skylight_followsdb::writer::add_follow(
+                            &schema,
+                            &mut tx,
+                            &rkey,
+                            &did,
+                            &record.subject,
+                        )
+                        .expect("skylight_followsdb::writer::add_follow");
+                    }
+                    pending_db.delete(&mut tx, &did)?;
+                    tx.commit()?;
+                    tracing::info!(action = "repo", did = did, n = n);
+                    Ok::<_, anyhow::Error>(())
+                })()
+                .await
+            } {
                 let mut tx = env.write_txn()?;
                 errored_db.put(&mut tx, &did, &format!("{}", err))?;
                 tx.commit()?;
