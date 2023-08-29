@@ -37,21 +37,26 @@ async fn worker_main(
     errored_db: heed::Database<heed::types::Str, heed::types::Str>,
 ) -> Result<(), anyhow::Error> {
     loop {
-        queued_notify.notified().await;
-        tracing::info!("wakeup");
-
         loop {
-            let did = {
+            let did = 'top: {
                 let mut tx = env.write_txn()?;
                 let did = if let Some((did, _)) = queued_db.first(&tx)? {
                     did.to_string()
                 } else {
-                    continue;
+                    break 'top None;
                 };
                 pending_db.put(&mut tx, &did, &())?;
                 queued_db.delete(&mut tx, &did)?;
                 tx.commit()?;
+                Some(did)
+            };
+
+            let did = if let Some(did) = did {
                 did
+            } else {
+                queued_notify.notified().await;
+                tracing::info!("wakeup");
+                continue;
             };
 
             if let Err(err) = {
@@ -206,7 +211,6 @@ async fn main() -> Result<(), anyhow::Error> {
     )));
 
     let queued_notify = std::sync::Arc::new(tokio::sync::Notify::new());
-    queued_notify.notify_waiters();
 
     let client = reqwest::Client::new();
 
