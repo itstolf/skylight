@@ -73,6 +73,9 @@ async fn worker_main(
                     true,
                 )
                 .await?;
+
+                let mut n = 0;
+                let mut tx: heed::RwTxn<'_> = env.write_txn()?;
                 for (key, cid) in repo.key_and_cids() {
                     let key = String::from_utf8_lossy(key);
                     let (collection, rkey) = match key.splitn(2, '/').collect::<Vec<_>>()[..] {
@@ -107,7 +110,6 @@ async fn worker_main(
                         }
                     };
 
-                    let mut tx = env.write_txn()?;
                     // Crash if we can't write to followsdb.
                     skylight_followsdb::writer::add_follow(
                         &schema,
@@ -117,10 +119,11 @@ async fn worker_main(
                         &record.subject,
                     )
                     .expect("skylight_followsdb::writer::add_follow");
-                    pending_db.delete(&mut tx, &did)?;
-                    tx.commit()?;
+                    n += 1;
                 }
-                tracing::info!(action = "repo", did = did);
+                pending_db.delete(&mut tx, &did)?;
+                tx.commit()?;
+                tracing::info!(action = "repo", did = did, n = n);
                 Ok::<_, anyhow::Error>(())
             })()
             .await
