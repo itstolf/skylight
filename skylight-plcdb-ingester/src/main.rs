@@ -69,26 +69,32 @@ async fn main() -> Result<(), anyhow::Error> {
 
             let mut tx = env.write_txn()?;
             match entry.operation {
-                directory::Operation::PlcOperation(operation) => skylight_plcdb::writer::add_did(
-                    &schema,
-                    &mut tx,
-                    &entry.did,
-                    &operation
-                        .also_known_as
-                        .iter()
-                        .map(|v| v.as_str())
-                        .filter(|v| v.len() <= 320)
-                        .collect::<Vec<_>>(),
-                )?,
+                directory::Operation::PlcOperation(operation) => {
+                    skylight_plcdb::writer::delete_did(&schema, &mut tx, &entry.did)?;
+                    skylight_plcdb::writer::add_did(
+                        &schema,
+                        &mut tx,
+                        &entry.did,
+                        &operation
+                            .also_known_as
+                            .iter()
+                            .map(|v| v.as_str())
+                            .filter(|v| v.len() <= 320)
+                            .collect::<Vec<_>>(),
+                    )?
+                }
                 directory::Operation::PlcTombstone(_) => {
                     skylight_plcdb::writer::delete_did(&schema, &mut tx, &entry.did)?;
                 }
-                directory::Operation::Create(create) => skylight_plcdb::writer::add_did(
-                    &schema,
-                    &mut tx,
-                    &entry.did,
-                    &[&format!("at://{}", create.handle)],
-                )?,
+                directory::Operation::Create(create) => {
+                    skylight_plcdb::writer::delete_did(&schema, &mut tx, &entry.did)?;
+                    skylight_plcdb::writer::add_did(
+                        &schema,
+                        &mut tx,
+                        &entry.did,
+                        &[&format!("at://{}", create.handle)],
+                    )?
+                }
             }
             after = entry.created_at;
             meta_db.put(&mut tx, "after".as_bytes(), after.as_bytes())?;
