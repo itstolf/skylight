@@ -112,7 +112,7 @@ async fn worker_main(
                 }
 
                 let n = records.len();
-                let mut tx: heed::RwTxn<'_> = env.write_txn()?;
+                let mut tx = env.write_txn()?;
                 for (rkey, record) in records {
                     // Crash if we can't write to followsdb.
                     skylight_followsdb::writer::add_follow(
