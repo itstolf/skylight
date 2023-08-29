@@ -89,6 +89,7 @@ async fn main() -> Result<(), anyhow::Error> {
     struct PathQuery {
         source_did: String,
         target_did: String,
+        #[serde(default)]
         max_mutuals: usize,
     }
     #[derive(serde::Serialize)]
