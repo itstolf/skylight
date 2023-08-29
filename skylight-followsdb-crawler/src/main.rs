@@ -289,5 +289,6 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
+    std::future::pending::<()>().await;
     Ok(())
 }
