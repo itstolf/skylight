@@ -278,17 +278,16 @@ async fn main() -> Result<(), anyhow::Error> {
             queued_notify.notify_one();
         }
 
-        let done = if let Some(c) = output.cursor {
+        let still_going = if let Some(c) = output.cursor {
             cursor = c;
             meta_db.put(&mut tx, "cursor".as_bytes(), cursor.as_bytes())?;
             true
         } else {
-            meta_db.delete(&mut tx, "cursor".as_bytes())?;
             false
         };
         tx.commit()?;
 
-        if !done {
+        if !still_going {
             break;
         }
     }

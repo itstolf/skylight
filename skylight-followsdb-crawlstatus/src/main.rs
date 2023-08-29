@@ -39,7 +39,10 @@ fn main() -> Result<(), anyhow::Error> {
     );
     println!(
         "cursor: {}",
-        String::from_utf8_lossy(&meta_db.get(&tx, "cursor".as_bytes())?.unwrap())
+        meta_db
+            .get(&tx, "cursor".as_bytes())?
+            .map(|v| String::from_utf8_lossy(&v).to_string())
+            .unwrap_or_else(|| "".to_string())
     );
     println!("errors:");
     for r in errored_db.iter(&tx)? {
