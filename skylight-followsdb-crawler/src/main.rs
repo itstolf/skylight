@@ -1,4 +1,6 @@
 use clap::Parser;
+use futures::TryStreamExt;
+use tracing::Instrument;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -8,6 +10,126 @@ struct Args {
 
     #[arg(long, default_value = "https://bsky.social")]
     pds_host: String,
+
+    #[arg(long, default_value_t = 8)]
+    num_workers: usize,
+}
+
+type RateLimiter = governor::RateLimiter<
+    governor::state::NotKeyed,
+    governor::state::InMemoryState,
+    governor::clock::QuantaClock,
+    governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
+>;
+
+async fn worker_main(
+    pds_host: String,
+    client: reqwest::Client,
+    rl: std::sync::Arc<RateLimiter>,
+    queued_notify: std::sync::Arc<tokio::sync::Notify>,
+    env: std::sync::Arc<heed::Env>,
+    schema: skylight_followsdb::Schema,
+    queued_db: heed::Database<heed::types::Str, heed::types::Unit>,
+    pending_db: heed::Database<heed::types::Str, heed::types::Unit>,
+    errored_db: heed::Database<heed::types::Str, heed::types::Str>,
+) -> Result<(), anyhow::Error> {
+    loop {
+        queued_notify.notified().await;
+
+        let did = {
+            let mut tx = env.write_txn()?;
+            let did = if let Some((did, _)) = queued_db.first(&tx)? {
+                did.to_string()
+            } else {
+                continue;
+            };
+            pending_db.put(&mut tx, &did, &())?;
+            queued_db.delete(&mut tx, &did)?;
+            tx.commit()?;
+            did
+        };
+
+        if let Err(err) = {
+            let env = std::sync::Arc::clone(&env);
+            let rl = std::sync::Arc::clone(&rl);
+            let pds_host = pds_host.clone();
+            let client = client.clone();
+            let schema = schema.clone();
+            let did = did.clone();
+            (move || async move {
+                rl.until_ready().await;
+                let repo = atproto_repo::load(
+                    &mut client
+                        .get(format!(
+                            "{}/xrpc/com.atproto.sync.getCheckout?did={}",
+                            pds_host, did
+                        ))
+                        .send()
+                        .await?
+                        .error_for_status()?
+                        .bytes_stream()
+                        .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                        .into_async_read(),
+                    true,
+                )
+                .await?;
+                for (key, cid) in repo.key_and_cids() {
+                    let key = String::from_utf8_lossy(key);
+                    let (collection, rkey) = match key.splitn(2, '/').collect::<Vec<_>>()[..] {
+                        [collection, rkey] => (collection, rkey),
+                        _ => {
+                            continue;
+                        }
+                    };
+
+                    if collection != "app.bsky.graph.follow" {
+                        continue;
+                    }
+
+                    let block = if let Some(block) = repo.get_by_cid(cid) {
+                        block
+                    } else {
+                        continue;
+                    };
+
+                    #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+                    #[serde(rename_all = "camelCase")]
+                    pub struct Record {
+                        pub created_at: String,
+                        pub subject: String,
+                    }
+
+                    let record: Record = match ciborium::from_reader(std::io::Cursor::new(block)) {
+                        Ok(record) => record,
+                        Err(e) => {
+                            tracing::error!(error = format!("ciborium::from_reader: {e:?}"));
+                            continue;
+                        }
+                    };
+
+                    let mut tx = env.write_txn()?;
+                    // Crash if we can't write to followsdb.
+                    skylight_followsdb::writer::add_follow(
+                        &schema,
+                        &mut tx,
+                        rkey,
+                        &did,
+                        &record.subject,
+                    )
+                    .expect("skylight_followsdb::writer::add_follow");
+                    pending_db.delete(&mut tx, &did)?;
+                    tx.commit()?;
+                }
+                tracing::info!(action = "repo", did = did);
+                Ok::<_, anyhow::Error>(())
+            })()
+            .await
+        } {
+            let mut tx = env.write_txn()?;
+            errored_db.put(&mut tx, &did, &format!("{}", err))?;
+            tx.commit()?;
+        }
+    }
 }
 
 #[tokio::main]
@@ -62,17 +184,48 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    let rl = governor::RateLimiter::direct(governor::Quota::per_second(
+    let rl = std::sync::Arc::new(governor::RateLimiter::direct(governor::Quota::per_second(
         std::num::NonZeroU32::new(3000 / (5 * 60)).unwrap(),
-    ));
+    )));
 
-    let queued_notify = tokio::sync::Notify::new();
+    let queued_notify = std::sync::Arc::new(tokio::sync::Notify::new());
     queued_notify.notify_waiters();
 
-    // TODO: Spawn workers.
+    let env = std::sync::Arc::new(env);
+
+    let client = reqwest::Client::new();
+
+    for i in 0..args.num_workers {
+        tokio::spawn({
+            let pds_host = args.pds_host.clone();
+            let client = client.clone();
+            let rl = std::sync::Arc::clone(&rl);
+            let queued_notify = std::sync::Arc::clone(&queued_notify);
+            let env = std::sync::Arc::clone(&env);
+            let schema = schema.clone();
+            let queued_db = queued_db.clone();
+            let pending_db = pending_db.clone();
+            let errored_db = errored_db.clone();
+            async move {
+                worker_main(
+                    pds_host,
+                    client,
+                    rl,
+                    queued_notify,
+                    env,
+                    schema,
+                    queued_db,
+                    pending_db,
+                    errored_db,
+                )
+                .instrument(tracing::info_span!("worker {}", i))
+                .await
+                .unwrap();
+            }
+        });
+    }
 
     let mut cursor = "".to_string();
-    let client = reqwest::Client::new();
     loop {
         let mut url = format!(
             "{}/xrpc/com.atproto.sync.listRepos?limit=1000",

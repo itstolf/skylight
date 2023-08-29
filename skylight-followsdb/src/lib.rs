@@ -15,6 +15,7 @@ pub enum Error {
     MalformedRecord(String),
 }
 
+#[derive(Clone)]
 pub struct Schema {
     follows_records: records::Records,
     follows_actor_subject_rkey_index: index::Index,
