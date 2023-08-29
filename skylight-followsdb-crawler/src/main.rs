@@ -19,9 +19,38 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let args = Args::parse();
 
+    let mut env_options = heed::EnvOpenOptions::new();
+    env_options
+        .max_dbs(10)
+        .map_size(1 * 1024 * 1024 * 1024 * 1024);
+    unsafe {
+        env_options.flags(
+            heed::EnvFlags::NO_LOCK | heed::EnvFlags::NO_SYNC | heed::EnvFlags::NO_META_SYNC,
+        );
+    }
+    let env = env_options.open(args.db_path)?;
+    let mut tx = env.write_txn()?;
+    let schema = skylight_followsdb::Schema::create(&env, &mut tx)?;
+    let meta_db = env.create_database::<heed::types::CowSlice<u8>, heed::types::CowSlice<u8>>(
+        &mut tx,
+        Some("crawler_meta"),
+    )?;
+    let queued_db = env
+        .create_database::<heed::types::Str, heed::types::Unit>(&mut tx, Some("crawler_queued"))?;
+    let pending_db = env
+        .create_database::<heed::types::Str, heed::types::Unit>(&mut tx, Some("crawler_pending"))?;
+    let errored_db = env
+        .create_database::<heed::types::Str, heed::types::Str>(&mut tx, Some("crawler_errored"))?;
+    tx.commit()?;
+
     let rl = governor::RateLimiter::direct(governor::Quota::per_second(
         std::num::NonZeroU32::new(3000 / (5 * 60)).unwrap(),
     ));
+
+    let queued_notify = tokio::sync::Notify::new();
+    queued_notify.notify_waiters();
+
+    // TODO: Spawn workers.
 
     let mut cursor = "".to_string();
     let client = reqwest::Client::new();
@@ -58,15 +87,26 @@ async fn main() -> Result<(), anyhow::Error> {
                 .await?,
         )?;
 
+        let mut tx = env.write_txn()?;
         for repo in output.repos {
-            tracing::info!(repo = repo.did);
+            queued_db.put(&mut tx, &repo.did, &())?;
+            queued_notify.notify_one();
         }
 
-        if let Some(c) = output.cursor {
+        let done = if let Some(c) = output.cursor {
             cursor = c;
+            meta_db.put(&mut tx, "cursor".as_bytes(), cursor.as_bytes())?;
+            true
         } else {
+            meta_db.delete(&mut tx, "cursor".as_bytes())?;
+            false
+        };
+        tx.commit()?;
+
+        if !done {
             break;
         }
+
         rl.until_ready().await;
     }
 
