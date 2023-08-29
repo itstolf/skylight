@@ -35,7 +35,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let env = env_options.open(args.db_path)?;
 
-    let schema = skylight_followsdb::Schema::open_or_create(&env)?;
+    let mut tx = env.write_txn()?;
+    let schema = skylight_followsdb::Schema::create(&env, &mut tx)?;
 
     let bar = indicatif::ProgressBar::new_spinner();
     bar.set_style(
@@ -44,7 +45,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .unwrap(),
     );
-    let mut tx = env.write_txn()?;
     for row in csv::ReaderBuilder::new()
         .has_headers(false)
         .from_reader(f)

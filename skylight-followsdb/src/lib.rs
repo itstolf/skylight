@@ -15,17 +15,6 @@ pub enum Error {
     MalformedRecord(String),
 }
 
-fn open_or_create_database<K, V>(
-    env: &heed::Env,
-    name: &str,
-) -> Result<heed::Database<K, V>, crate::Error>
-where
-    K: 'static,
-    V: 'static,
-{
-    Ok(env.create_database(&mut env.write_txn()?, Some(name))?)
-}
-
 pub struct Schema {
     follows_records: records::Records,
     follows_actor_subject_rkey_index: index::Index,
@@ -33,12 +22,13 @@ pub struct Schema {
 }
 
 impl Schema {
-    pub fn open_or_create(env: &heed::Env) -> Result<Self, Error> {
-        let follows_records = open_or_create_database(&env, "follows")?;
+    pub fn create(env: &heed::Env, tx: &mut heed::RwTxn) -> Result<Self, Error> {
+        let follows_records = env.create_database(tx, Some("follows"))?;
         let follows_actor_subject_rkey_index =
-            open_or_create_database(&env, "follows:actor:subject:rkey")?;
+            env.create_database(tx, Some("follows:actor:subject:rkey"))?;
         let follows_subject_actor_rkey_index =
-            open_or_create_database(&env, "follows:subject:actor:rkey")?;
+            env.create_database(tx, Some("follows:subject:actor:rkey"))?;
+
         Ok(Self {
             follows_records,
             follows_actor_subject_rkey_index,
@@ -60,8 +50,8 @@ mod test {
             .open(dir.path())
             .unwrap();
 
-        let schema = Schema::open_or_create(&env).unwrap();
         let mut tx = env.write_txn().unwrap();
+        let schema = Schema::create(&env, &mut tx).unwrap();
         writer::add_follow(&schema, &mut tx, "test", "user1", "user2").unwrap();
         assert_eq!(
             reader::get_followers(&schema, &mut tx, "user1").unwrap(),
@@ -95,8 +85,8 @@ mod test {
             .open(dir.path())
             .unwrap();
 
-        let schema = Schema::open_or_create(&env).unwrap();
         let mut tx = env.write_txn().unwrap();
+        let schema = Schema::create(&env, &mut tx).unwrap();
         writer::add_follow(&schema, &mut tx, "test", "user1", "user2").unwrap();
         writer::add_follow(&schema, &mut tx, "test2", "user2", "user1").unwrap();
         assert_eq!(
