@@ -13,6 +13,9 @@ struct Args {
 
     #[arg(long, default_value_t = 8)]
     num_workers: usize,
+
+    #[arg(long)]
+    only_crawl_queued_repos: bool,
 }
 
 type RateLimiter = governor::RateLimiter<
@@ -237,58 +240,60 @@ async fn main() -> Result<(), anyhow::Error> {
         });
     }
 
-    let mut cursor = "".to_string();
-    loop {
-        let mut url = format!(
-            "{}/xrpc/com.atproto.sync.listRepos?limit=1000",
-            args.pds_host
-        );
-        if cursor != "" {
-            url.push_str(&format!("&cursor={}", cursor));
-        }
+    if !args.only_crawl_queued_repos {
+        let mut cursor = "".to_string();
+        loop {
+            let mut url = format!(
+                "{}/xrpc/com.atproto.sync.listRepos?limit=1000",
+                args.pds_host
+            );
+            if cursor != "" {
+                url.push_str(&format!("&cursor={}", cursor));
+            }
 
-        #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
-        #[serde(rename_all = "camelCase")]
-        struct Output {
-            cursor: Option<String>,
-            repos: Vec<Repo>,
-        }
+            #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+            #[serde(rename_all = "camelCase")]
+            struct Output {
+                cursor: Option<String>,
+                repos: Vec<Repo>,
+            }
 
-        #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
-        #[serde(rename_all = "camelCase")]
-        struct Repo {
-            did: String,
-            head: String,
-        }
+            #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+            #[serde(rename_all = "camelCase")]
+            struct Repo {
+                did: String,
+                head: String,
+            }
 
-        rl.until_ready().await;
-        let output: Output = serde_json::from_slice(
-            &client
-                .get(url)
-                .send()
-                .await?
-                .error_for_status()?
-                .bytes()
-                .await?,
-        )?;
+            rl.until_ready().await;
+            let output: Output = serde_json::from_slice(
+                &client
+                    .get(url)
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .bytes()
+                    .await?,
+            )?;
 
-        let mut tx = env.write_txn()?;
-        for repo in output.repos {
-            queued_db.put(&mut tx, &repo.did, &())?;
-            queued_notify.notify_one();
-        }
+            let mut tx = env.write_txn()?;
+            for repo in output.repos {
+                queued_db.put(&mut tx, &repo.did, &())?;
+                queued_notify.notify_one();
+            }
 
-        let still_going = if let Some(c) = output.cursor {
-            cursor = c;
-            meta_db.put(&mut tx, "cursor".as_bytes(), cursor.as_bytes())?;
-            true
-        } else {
-            false
-        };
-        tx.commit()?;
+            let still_going = if let Some(c) = output.cursor {
+                cursor = c;
+                meta_db.put(&mut tx, "cursor".as_bytes(), cursor.as_bytes())?;
+                true
+            } else {
+                false
+            };
+            tx.commit()?;
 
-        if !still_going {
-            break;
+            if !still_going {
+                break;
+            }
         }
     }
 
