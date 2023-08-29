@@ -58,21 +58,27 @@ async fn worker_main(
             let did = did.clone();
             (move || async move {
                 rl.until_ready().await;
-                let repo = atproto_repo::load(
-                    &mut client
-                        .get(format!(
-                            "{}/xrpc/com.atproto.sync.getCheckout?did={}",
-                            pds_host, did
-                        ))
-                        .send()
-                        .await?
+                let repo = tokio::time::timeout(
+                    std::time::Duration::from_secs(30 * 60),
+                    atproto_repo::load(
+                        &mut tokio::time::timeout(
+                            std::time::Duration::from_secs(10 * 60),
+                            client
+                                .get(format!(
+                                    "{}/xrpc/com.atproto.sync.getCheckout?did={}",
+                                    pds_host, did
+                                ))
+                                .send(),
+                        )
+                        .await??
                         .error_for_status()?
                         .bytes_stream()
                         .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
                         .into_async_read(),
-                    true,
+                        true,
+                    ),
                 )
-                .await?;
+                .await??;
 
                 let mut records = vec![];
                 for (key, cid) in repo.key_and_cids() {
@@ -206,7 +212,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let pending_db = pending_db.clone();
             let errored_db = errored_db.clone();
             async move {
-                worker_main(
+                if let Err(err) = worker_main(
                     pds_host,
                     client,
                     rl,
@@ -219,7 +225,10 @@ async fn main() -> Result<(), anyhow::Error> {
                 )
                 .instrument(tracing::info_span!("worker", i))
                 .await
-                .unwrap();
+                {
+                    tracing::error!(?err);
+                    std::process::abort();
+                }
             }
         });
     }
@@ -236,16 +245,16 @@ async fn main() -> Result<(), anyhow::Error> {
 
         #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
         #[serde(rename_all = "camelCase")]
-        pub struct Output {
-            pub cursor: Option<String>,
-            pub repos: Vec<Repo>,
+        struct Output {
+            cursor: Option<String>,
+            repos: Vec<Repo>,
         }
 
         #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
         #[serde(rename_all = "camelCase")]
-        pub struct Repo {
-            pub did: String,
-            pub head: String,
+        struct Repo {
+            did: String,
+            head: String,
         }
 
         rl.until_ready().await;
