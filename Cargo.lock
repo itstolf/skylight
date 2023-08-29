@@ -1750,21 +1750,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38b58827f4464d87d377d175e90bf58eb00fd8716ff0a62f80356b5e61555d0d"
 
 [[package]]
-name = "skylight-crawler"
-version = "0.1.0"
-dependencies = [
- "atrium-api",
- "atrium-xrpc",
- "tokio",
-]
-
-[[package]]
 name = "skylight-followsdb"
 version = "0.1.0"
 dependencies = [
  "heed",
  "tempfile",
  "thiserror",
+]
+
+[[package]]
+name = "skylight-followsdb-crawler"
+version = "0.1.0"
+dependencies = [
+ "atrium-api",
+ "atrium-xrpc",
+ "tokio",
 ]
 
 [[package]]
@@ -1780,7 +1780,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "skylight-ingester"
+name = "skylight-followsdb-ingester"
 version = "0.1.0"
 dependencies = [
  "anyhow",

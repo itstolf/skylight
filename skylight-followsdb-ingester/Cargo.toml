@@ -1,5 +1,5 @@
 [package]
-name = "skylight-ingester"
+name = "skylight-followsdb-ingester"
 version = "0.1.0"
 edition = "2021"
 
