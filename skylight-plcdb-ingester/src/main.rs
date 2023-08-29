@@ -54,14 +54,15 @@ async fn main() -> Result<(), anyhow::Error> {
         }
 
         rl.until_ready().await;
-        for line in client
-            .get(url)
-            .send()
-            .await?
-            .error_for_status()?
-            .bytes()
-            .await?
-            .split(|c| *c == '\n' as u8)
+        for line in tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            tokio::time::timeout(std::time::Duration::from_secs(10), client.get(url).send())
+                .await??
+                .error_for_status()?
+                .bytes(),
+        )
+        .await??
+        .split(|c| *c == '\n' as u8)
         {
             let entry: directory::Entry = serde_json::from_slice(&line)?;
             tracing::info!(entry = ?entry);
