@@ -57,6 +57,8 @@ async fn main() -> Result<(), anyhow::Error> {
         if after != "" {
             url.push_str(&format!("?after={}", after));
         }
+
+        rl.until_ready().await;
         for line in client
             .get(url)
             .send()
@@ -95,6 +97,5 @@ async fn main() -> Result<(), anyhow::Error> {
             meta_db.put(&mut tx, "after".as_bytes(), after.as_bytes())?;
             tx.commit()?;
         }
-        rl.until_ready().await;
     }
 }

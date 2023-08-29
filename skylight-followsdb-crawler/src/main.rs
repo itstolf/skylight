@@ -96,6 +96,7 @@ async fn main() -> Result<(), anyhow::Error> {
             pub head: String,
         }
 
+        rl.until_ready().await;
         let output: Output = serde_json::from_slice(
             &client
                 .get(url)
@@ -125,8 +126,6 @@ async fn main() -> Result<(), anyhow::Error> {
         if !done {
             break;
         }
-
-        rl.until_ready().await;
     }
 
     Ok(())
