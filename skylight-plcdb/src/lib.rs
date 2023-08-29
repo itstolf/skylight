@@ -14,6 +14,7 @@ pub enum Error {
     MissingDatabase(String),
 }
 
+#[derive(Clone)]
 pub struct Schema {
     pub did_aka_index: index::Index,
     pub aka_did_index: index::Index,
