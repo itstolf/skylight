@@ -126,16 +126,11 @@ async fn process_message(
         "#commit" => {
             let commit: firehose::Commit = ciborium::from_reader(&mut cursor)?;
             for op in commit.ops {
-                let mut splits = op.path.splitn(2, '/');
-                let collection = if let Some(collection) = splits.next() {
-                    collection
-                } else {
-                    continue;
-                };
-                let rkey = if let Some(rkey) = splits.next() {
-                    rkey
-                } else {
-                    continue;
+                let (collection, rkey) = match op.path.splitn(2, '/').collect::<Vec<_>>()[..] {
+                    [collection, rkey] => (collection, rkey),
+                    _ => {
+                        continue;
+                    }
                 };
 
                 if collection != "app.bsky.graph.follow" {
@@ -183,13 +178,15 @@ async fn process_message(
                             }
                         };
 
+                        // Crash if we can't write to followsdb.
                         skylight_followsdb::writer::add_follow(
                             schema,
                             &mut tx,
                             rkey,
                             &commit.repo,
                             &record.subject,
-                        )?;
+                        )
+                        .expect("skylight_followsdb::writer::add_follow");
                         tracing::info!(
                             action = "create follow",
                             seq = commit.seq,
@@ -199,7 +196,9 @@ async fn process_message(
                         )
                     }
                     "delete" => {
-                        skylight_followsdb::writer::delete_follow(schema, &mut tx, rkey)?;
+                        // Crash if we can't write to followsdb.
+                        skylight_followsdb::writer::delete_follow(schema, &mut tx, rkey)
+                            .expect("skylight_followsdb::writer::delete_follow");
                         tracing::info!(
                             action = "delete follow",
                             seq = commit.seq,
@@ -216,7 +215,9 @@ async fn process_message(
         }
         "#tombstone" => {
             let tombstone: firehose::Tombstone = ciborium::from_reader(&mut cursor)?;
-            skylight_followsdb::writer::delete_actor(schema, &mut tx, &tombstone.did)?;
+            // Crash if we can't write to followsdb.
+            skylight_followsdb::writer::delete_actor(schema, &mut tx, &tombstone.did)
+                .expect("skylight_followsdb::writer::delete_actor");
             tracing::info!(
                 action = "delete actor",
                 seq = tombstone.seq,
@@ -238,7 +239,10 @@ async fn process_message(
     };
     let mut buf = [0u8; 8];
     byteorder::LittleEndian::write_i64(&mut buf, seq);
-    meta_db.put(&mut tx, "cursor".as_bytes(), &buf)?;
+    // Crash if we can't write the cursor.
+    meta_db
+        .put(&mut tx, "cursor".as_bytes(), &buf)
+        .expect("write cursor");
     tx.commit()?;
     Ok(())
 }
