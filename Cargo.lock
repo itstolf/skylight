@@ -1718,9 +1718,14 @@ dependencies = [
 name = "skylight-queryserver"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "clap",
  "heed",
  "skylight-followsdb",
  "skylight-plcdb",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
