@@ -84,6 +84,17 @@ async fn main() -> Result<(), anyhow::Error> {
         edges: Vec<Vec<usize>>,
     }
 
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct MutualsQuery {
+        did: String,
+    }
+    #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct MutualsResponse {
+        mutuals: Vec<String>,
+    }
+
     let routes = warp::get().and(
         warp::path("_").and(
             warp::path::end()
@@ -141,6 +152,29 @@ async fn main() -> Result<(), anyhow::Error> {
                                 Ok::<_, warp::Rejection>(warp::reply::json(&WhoisResponse {
                                     did,
                                     also_known_as,
+                                }))
+                            }
+                        }
+                    }))
+                .or(warp::path("mutuals")
+                    .and(warp::path::end())
+                    .and(warp::query::<MutualsQuery>())
+                    .and_then({
+                        let followsdb_env = followsdb_env.clone();
+                        move |q: MutualsQuery| {
+                            let followsdb_env = followsdb_env.clone();
+                            async move {
+                                let tx = followsdb_env
+                                    .read_txn()
+                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                let followsdb_schema =
+                                    skylight_followsdb::Schema::open(&followsdb_env, &tx).map_err(
+                                        |e| warp::reject::custom(CustomReject(e.into())),
+                                    )?;
+                                let mutuals = query::mutuals(&followsdb_schema, &tx, &q.did)
+                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                Ok::<_, warp::Rejection>(warp::reply::json(&MutualsResponse {
+                                    mutuals,
                                 }))
                             }
                         }
