@@ -1731,6 +1731,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "skylight-followsdb-crawlstatus"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "heed",
+]
+
+[[package]]
 name = "skylight-followsdb-csvimporter"
 version = "0.1.0"
 dependencies = [
