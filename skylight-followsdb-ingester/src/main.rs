@@ -162,9 +162,9 @@ async fn process_message(
 
                         #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
                         #[serde(rename_all = "camelCase")]
-                        pub struct Record {
-                            pub created_at: String,
-                            pub subject: String,
+                        struct Record {
+                            created_at: String,
+                            subject: String,
                         }
 
                         let record: Record = match ciborium::from_reader(std::io::Cursor::new(item))

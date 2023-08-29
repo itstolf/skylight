@@ -74,8 +74,7 @@ async fn worker_main(
                 )
                 .await?;
 
-                let mut n = 0;
-                let mut tx: heed::RwTxn<'_> = env.write_txn()?;
+                let mut records = vec![];
                 for (key, cid) in repo.key_and_cids() {
                     let key = String::from_utf8_lossy(key);
                     let (collection, rkey) = match key.splitn(2, '/').collect::<Vec<_>>()[..] {
@@ -97,9 +96,9 @@ async fn worker_main(
 
                     #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
                     #[serde(rename_all = "camelCase")]
-                    pub struct Record {
-                        pub created_at: String,
-                        pub subject: String,
+                    struct Record {
+                        created_at: String,
+                        subject: String,
                     }
 
                     let record: Record = match ciborium::from_reader(std::io::Cursor::new(block)) {
@@ -109,17 +108,21 @@ async fn worker_main(
                             continue;
                         }
                     };
+                    records.push((rkey.to_string(), record));
+                }
 
+                let n = records.len();
+                let mut tx: heed::RwTxn<'_> = env.write_txn()?;
+                for (rkey, record) in records {
                     // Crash if we can't write to followsdb.
                     skylight_followsdb::writer::add_follow(
                         &schema,
                         &mut tx,
-                        rkey,
+                        &rkey,
                         &did,
                         &record.subject,
                     )
                     .expect("skylight_followsdb::writer::add_follow");
-                    n += 1;
                 }
                 pending_db.delete(&mut tx, &did)?;
                 tx.commit()?;
