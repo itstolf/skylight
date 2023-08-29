@@ -77,6 +77,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         .also_known_as
                         .iter()
                         .map(|v| v.as_str())
+                        .filter(|v| v.len() <= 320)
                         .collect::<Vec<_>>(),
                 )?,
                 directory::Operation::PlcTombstone(_) => {
