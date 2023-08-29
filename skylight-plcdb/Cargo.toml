@@ -1,0 +1,8 @@
+[package]
+name = "skylight-plcdb"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+heed = "0.20.0-alpha.4"
+thiserror = "1"

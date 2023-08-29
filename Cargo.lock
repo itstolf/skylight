@@ -1712,7 +1712,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "skylight-plcmirrorer"
+name = "skylight-plcdb"
+version = "0.1.0"
+dependencies = [
+ "heed",
+ "thiserror",
+]
+
+[[package]]
+name = "skylight-plcdb-mirrorer"
 version = "0.1.0"
 
 [[package]]
