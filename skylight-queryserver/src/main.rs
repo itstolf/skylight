@@ -35,6 +35,9 @@ async fn main() -> Result<(), anyhow::Error> {
         env_options
             .max_dbs(10)
             .map_size(1 * 1024 * 1024 * 1024 * 1024);
+        unsafe {
+            env_options.flags(heed::EnvFlags::READ_ONLY);
+        }
         env_options.open(args.plcdb_path)?
     };
 
@@ -43,37 +46,30 @@ async fn main() -> Result<(), anyhow::Error> {
         env_options
             .max_dbs(10)
             .map_size(1 * 1024 * 1024 * 1024 * 1024);
+        unsafe {
+            env_options.flags(heed::EnvFlags::READ_ONLY);
+        }
         env_options.open(args.followsdb_path)?
     };
 
-    let plcdb_schema = {
-        let tx = plcdb_env.read_txn()?;
-        skylight_plcdb::Schema::open(&plcdb_env, &tx)?
-    };
-
-    let followsdb_schema = {
-        let tx = followsdb_env.read_txn()?;
-        skylight_followsdb::Schema::open(&followsdb_env, &tx)?
-    };
-
     #[derive(serde::Deserialize)]
-    #[serde(rename = "camelCase")]
+    #[serde(rename_all = "camelCase")]
     struct AkaQuery {
         did: Vec<String>,
     }
     #[derive(serde::Serialize)]
-    #[serde(rename = "camelCase")]
+    #[serde(rename_all = "camelCase")]
     struct AkaResponse {
         akas: std::collections::HashMap<String, Vec<String>>,
     }
 
     #[derive(serde::Deserialize)]
-    #[serde(rename = "camelCase")]
+    #[serde(rename_all = "camelCase")]
     struct WhoisQuery {
         actor: String,
     }
     #[derive(serde::Serialize)]
-    #[serde(rename = "camelCase")]
+    #[serde(rename_all = "camelCase")]
     struct WhoisResponse {
         did: String,
         also_known_as: Vec<String>,
@@ -88,14 +84,14 @@ async fn main() -> Result<(), anyhow::Error> {
                     .and(warp::query::<AkaQuery>())
                     .and_then({
                         let plcdb_env = plcdb_env.clone();
-                        let plcdb_schema = plcdb_schema.clone();
                         move |q: AkaQuery| {
                             let plcdb_env = plcdb_env.clone();
-                            let plcdb_schema = plcdb_schema.clone();
 
                             async move {
                                 let tx = plcdb_env
                                     .read_txn()
+                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                let plcdb_schema = skylight_plcdb::Schema::open(&plcdb_env, &tx)
                                     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
                                 let a = query::akas(
                                     &plcdb_schema,
@@ -114,13 +110,13 @@ async fn main() -> Result<(), anyhow::Error> {
                     .and(warp::query::<WhoisQuery>())
                     .and_then({
                         let plcdb_env = plcdb_env.clone();
-                        let plcdb_schema = plcdb_schema.clone();
                         move |q: WhoisQuery| {
                             let plcdb_env = plcdb_env.clone();
-                            let plcdb_schema = plcdb_schema.clone();
                             async move {
                                 let tx = plcdb_env
                                     .read_txn()
+                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                let plcdb_schema = skylight_plcdb::Schema::open(&plcdb_env, &tx)
                                     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
                                 let (did, also_known_as) = if let Some(w) =
                                     query::whois(&plcdb_schema, &tx, &q.actor)
@@ -139,10 +135,8 @@ async fn main() -> Result<(), anyhow::Error> {
                     }))
                 .or(warp::path("neighborhood").and(warp::path::end()).and_then({
                     let followsdb_env = followsdb_env.clone();
-                    let followsdb_schema = followsdb_schema.clone();
                     move || {
                         let followsdb_env = followsdb_env.clone();
-                        let followsdb_schema = followsdb_schema.clone();
                         async move { Ok::<_, warp::Rejection>("b") }
                     }
                 })),

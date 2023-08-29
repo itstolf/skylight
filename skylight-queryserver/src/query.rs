@@ -30,7 +30,7 @@ pub fn whois(
     } else {
         return Ok(None);
     };
-    let akas = skylight_plcdb::reader::get_akas(schema, tx, actor)?;
+    let akas = skylight_plcdb::reader::get_akas(schema, tx, &did)?;
     Ok(Some((did, akas)))
 }
 
