@@ -36,27 +36,29 @@ async fn worker_main(
     loop {
         queued_notify.notified().await;
 
-        let did = {
-            let mut tx = env.write_txn()?;
-            let did = if let Some((did, _)) = queued_db.first(&tx)? {
-                did.to_string()
-            } else {
-                continue;
+        loop {
+            let did = {
+                let mut tx = env.write_txn()?;
+                let did = if let Some((did, _)) = queued_db.first(&tx)? {
+                    did.to_string()
+                } else {
+                    continue;
+                };
+                pending_db.put(&mut tx, &did, &())?;
+                queued_db.delete(&mut tx, &did)?;
+                tx.commit()?;
+                did
             };
-            pending_db.put(&mut tx, &did, &())?;
-            queued_db.delete(&mut tx, &did)?;
-            tx.commit()?;
-            did
-        };
 
-        if let Err(err) = {
-            let env = env.clone();
-            let rl = std::sync::Arc::clone(&rl);
-            let pds_host = pds_host.clone();
-            let client = client.clone();
-            let schema = schema.clone();
-            let did = did.clone();
-            (move || async move {
+            if let Err(err) =
+                {
+                    let env = env.clone();
+                    let rl = std::sync::Arc::clone(&rl);
+                    let pds_host = pds_host.clone();
+                    let client = client.clone();
+                    let schema = schema.clone();
+                    let did = did.clone();
+                    (move || async move {
                 rl.until_ready().await;
                 let repo = tokio::time::timeout(
                     std::time::Duration::from_secs(30 * 60),
@@ -136,10 +138,12 @@ async fn worker_main(
                 Ok::<_, anyhow::Error>(())
             })()
             .await
-        } {
-            let mut tx = env.write_txn()?;
-            errored_db.put(&mut tx, &did, &format!("{}", err))?;
-            tx.commit()?;
+                }
+            {
+                let mut tx = env.write_txn()?;
+                errored_db.put(&mut tx, &did, &format!("{}", err))?;
+                tx.commit()?;
+            }
         }
     }
 }
