@@ -207,38 +207,36 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let client = reqwest::Client::new();
 
-    for i in 0..args.num_workers {
-        tokio::spawn({
-            let pds_host = args.pds_host.clone();
-            let client = client.clone();
-            let rl = std::sync::Arc::clone(&rl);
-            let queued_notify = std::sync::Arc::clone(&queued_notify);
-            let env = env.clone();
-            let schema = schema.clone();
-            let queued_db = queued_db.clone();
-            let pending_db = pending_db.clone();
-            let errored_db = errored_db.clone();
-            async move {
-                if let Err(err) = worker_main(
-                    pds_host,
-                    client,
-                    rl,
-                    queued_notify,
-                    env,
-                    schema,
-                    queued_db,
-                    pending_db,
-                    errored_db,
-                )
-                .instrument(tracing::info_span!("worker", i))
-                .await
-                {
-                    tracing::error!(?err);
-                    std::process::abort();
+    let workers = (0..args.num_workers)
+        .map(|i| {
+            tokio::spawn({
+                let pds_host = args.pds_host.clone();
+                let client = client.clone();
+                let rl = std::sync::Arc::clone(&rl);
+                let queued_notify = std::sync::Arc::clone(&queued_notify);
+                let env = env.clone();
+                let schema = schema.clone();
+                let queued_db = queued_db.clone();
+                let pending_db = pending_db.clone();
+                let errored_db = errored_db.clone();
+                async move {
+                    worker_main(
+                        pds_host,
+                        client,
+                        rl,
+                        queued_notify,
+                        env,
+                        schema,
+                        queued_db,
+                        pending_db,
+                        errored_db,
+                    )
+                    .instrument(tracing::info_span!("worker", i))
+                    .await
                 }
-            }
-        });
-    }
+            })
+        })
+        .collect::<Vec<_>>();
 
     if !args.only_crawl_queued_repos {
         let mut cursor = "".to_string();
@@ -297,6 +295,10 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    std::future::pending::<()>().await;
+    futures::future::join_all(workers)
+        .await
+        .into_iter()
+        .flatten()
+        .collect::<Result<_, _>>()?;
     Ok(())
 }
