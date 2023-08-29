@@ -43,6 +43,25 @@ async fn main() -> Result<(), anyhow::Error> {
         .create_database::<heed::types::Str, heed::types::Str>(&mut tx, Some("crawler_errored"))?;
     tx.commit()?;
 
+    // Before we start, we should move all the pending items back into the queue as they were incompletely processed.
+    {
+        let mut tx = env.write_txn()?;
+        let mut keys = vec![];
+        {
+            let mut iter = pending_db.iter_mut(&mut tx)?;
+            while let Some(k) = iter.next() {
+                let (k, _) = k?;
+                keys.push(k.to_string());
+                unsafe {
+                    iter.del_current()?;
+                }
+            }
+        }
+        for k in keys {
+            queued_db.put(&mut tx, &k, &())?;
+        }
+    }
+
     let rl = governor::RateLimiter::direct(governor::Quota::per_second(
         std::num::NonZeroU32::new(3000 / (5 * 60)).unwrap(),
     ));
