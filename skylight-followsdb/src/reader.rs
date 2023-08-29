@@ -1,4 +1,4 @@
-pub fn get_followers(
+pub fn get_followees(
     schema: &crate::Schema,
     tx: &heed::RoTxn,
     actor: &str,
@@ -16,7 +16,7 @@ pub fn get_followers(
         .collect()
 }
 
-pub fn get_followees(
+pub fn get_followers(
     schema: &crate::Schema,
     tx: &heed::RoTxn,
     actor: &str,
@@ -32,4 +32,17 @@ pub fn get_followees(
             })
         })
         .collect()
+}
+
+pub fn is_following(
+    schema: &crate::Schema,
+    tx: &heed::RoTxn,
+    actor: &str,
+    subject: &str,
+) -> Result<bool, crate::Error> {
+    Ok(schema
+        .follows_actor_subject_rkey_index
+        .prefix_iter(tx, &crate::index::make_key_prefix(&[actor, subject]))?
+        .next()
+        .is_some())
 }

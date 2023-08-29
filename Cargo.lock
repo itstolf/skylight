@@ -1716,6 +1716,11 @@ dependencies = [
 [[package]]
 name = "skylight-queryserver"
 version = "0.1.0"
+dependencies = [
+ "heed",
+ "skylight-followsdb",
+ "skylight-plcdb",
+]
 
 [[package]]
 name = "slab"
