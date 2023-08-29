@@ -52,11 +52,6 @@ async fn main() -> Result<(), anyhow::Error> {
         env_options.open(args.followsdb_path)?
     };
 
-    #[derive(serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct AkaQuery {
-        did: Vec<String>,
-    }
     #[derive(serde::Serialize)]
     #[serde(rename_all = "camelCase")]
     struct AkaResponse {
@@ -79,12 +74,12 @@ async fn main() -> Result<(), anyhow::Error> {
         warp::path("_").and(
             warp::path::end()
                 .and_then(|| async move { Err::<&str, _>(warp::reject::not_found()) })
-                .or(warp::path("aka")
+                .or(warp::path("akas")
                     .and(warp::path::end())
-                    .and(warp::query::<AkaQuery>())
+                    .and(warp::query::<Vec<(String, String)>>())
                     .and_then({
                         let plcdb_env = plcdb_env.clone();
-                        move |q: AkaQuery| {
+                        move |q: Vec<(String, String)>| {
                             let plcdb_env = plcdb_env.clone();
 
                             async move {
@@ -96,7 +91,10 @@ async fn main() -> Result<(), anyhow::Error> {
                                 let a = query::akas(
                                     &plcdb_schema,
                                     &tx,
-                                    &q.did.iter().map(|v| v.as_str()).collect::<Vec<_>>(),
+                                    &q.iter()
+                                        .filter(|(k, _)| k == "did")
+                                        .map(|(_, v)| v.as_str())
+                                        .collect::<Vec<_>>(),
                                 )
                                 .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
                                 Ok::<_, warp::Rejection>(warp::reply::json(&AkaResponse {
