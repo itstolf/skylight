@@ -84,17 +84,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
-name = "async-trait"
-version = "0.1.73"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc00ceb34980c03614e35a3a4e218276a0a824e911d07651cd0d858a51e8c0f0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.29",
-]
-
-[[package]]
 name = "atproto-repo"
 version = "0.1.0"
 dependencies = [
@@ -104,35 +93,6 @@ dependencies = [
  "futures-util",
  "rs-car",
  "serde",
- "thiserror",
-]
-
-[[package]]
-name = "atrium-api"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a46a96f4c868dacaabbc8fc46f5247aae35995f6faf58272ac7da2d6777fad56"
-dependencies = [
- "async-trait",
- "atrium-xrpc",
- "cid",
- "http",
- "serde",
- "serde_bytes",
-]
-
-[[package]]
-name = "atrium-xrpc"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35c68d93cfc911c693310c5a1618c7614c1d45765218b054d77663ff227b29f1"
-dependencies = [
- "async-trait",
- "http",
- "reqwest",
- "serde",
- "serde_json",
- "serde_qs",
  "thiserror",
 ]
 
@@ -1671,17 +1631,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_qs"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0431a35568651e363364210c91983c1da5eb29404d9f0928b67d4ebcfa7d330c"
-dependencies = [
- "percent-encoding",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1762,9 +1711,18 @@ dependencies = [
 name = "skylight-followsdb-crawler"
 version = "0.1.0"
 dependencies = [
- "atrium-api",
- "atrium-xrpc",
+ "anyhow",
+ "atproto-repo",
+ "clap",
+ "governor",
+ "heed",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "skylight-plcdb",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
