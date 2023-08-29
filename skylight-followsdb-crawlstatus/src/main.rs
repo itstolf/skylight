@@ -33,9 +33,13 @@ fn main() -> Result<(), anyhow::Error> {
     let schema = skylight_followsdb::Schema::open(&env, &tx)?;
 
     println!("follows: {}", schema.follows_records.len(&tx)?);
+    let n_queued = queued_db.len(&tx)?;
+    let n_pending = pending_db.len(&tx)?;
     println!(
-        "entries queued: {}",
-        queued_db.len(&tx)? + pending_db.len(&tx)?
+        "entries queued: {} ({} queued + {} pending)",
+        n_queued + n_pending,
+        n_queued,
+        n_pending,
     );
     println!(
         "cursor: {}",
