@@ -1,7 +1,7 @@
 mod firehose;
 use byteorder::ByteOrder;
 use clap::Parser;
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
 use tracing::Instrument;
 
 #[derive(Parser, Debug)]
@@ -51,15 +51,30 @@ async fn main() -> Result<(), anyhow::Error> {
         url.push_str(&format!("?cursor={cursor}"));
     }
 
-    let (mut stream, _) = tokio_tungstenite::connect_async(url).await?;
-    while let Some(Ok(tokio_tungstenite::tungstenite::Message::Binary(message))) =
-        tokio::time::timeout(std::time::Duration::from_secs(60), stream.next()).await?
-    {
-        process_message(&env, &schema, &meta_db, &message)
-            .instrument(tracing::info_span!("process_message"))
-            .await?;
+    let (stream, _) = tokio_tungstenite::connect_async(url).await?;
+    let (mut tx, mut rx) = stream.split();
+
+    loop {
+        tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+                tokio::time::timeout(
+                    std::time::Duration::from_secs(10),
+                    tx.send(tokio_tungstenite::tungstenite::Message::Ping(vec![]))
+                ).await??;
+            }
+
+            msg = tokio::time::timeout(std::time::Duration::from_secs(60), rx.next()) => {
+                let msg = if let Some(Ok(tokio_tungstenite::tungstenite::Message::Binary(msg))) = msg? {
+                    msg
+                } else {
+                    continue;
+                };
+                process_message(&env, &schema, &meta_db, &msg)
+                    .instrument(tracing::info_span!("process_message"))
+                    .await?;
+            }
+        }
     }
-    Ok(())
 }
 
 #[derive(Debug, serde::Deserialize)]
