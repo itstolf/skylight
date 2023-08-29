@@ -196,6 +196,7 @@ async fn main() -> Result<(), anyhow::Error> {
         for k in keys {
             queued_db.put(&mut tx, &k, &())?;
         }
+        tx.commit()?;
     }
 
     let rl = std::sync::Arc::new(governor::RateLimiter::direct(governor::Quota::per_second(
