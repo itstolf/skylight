@@ -1716,6 +1716,7 @@ name = "skylight-plcdb"
 version = "0.1.0"
 dependencies = [
  "heed",
+ "tempfile",
  "thiserror",
 ]
 

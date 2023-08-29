@@ -6,3 +6,6 @@ edition = "2021"
 [dependencies]
 heed = "0.20.0-alpha.4"
 thiserror = "1"
+
+[dev-dependencies]
+tempfile = "3"
