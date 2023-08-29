@@ -35,9 +35,6 @@ async fn main() -> Result<(), anyhow::Error> {
         env_options
             .max_dbs(10)
             .map_size(1 * 1024 * 1024 * 1024 * 1024);
-        unsafe {
-            env_options.flags(heed::EnvFlags::READ_ONLY);
-        }
         env_options.open(args.plcdb_path)?
     };
 
@@ -46,9 +43,6 @@ async fn main() -> Result<(), anyhow::Error> {
         env_options
             .max_dbs(10)
             .map_size(1 * 1024 * 1024 * 1024 * 1024);
-        unsafe {
-            env_options.flags(heed::EnvFlags::READ_ONLY);
-        }
         env_options.open(args.followsdb_path)?
     };
 
