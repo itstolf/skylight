@@ -86,6 +86,19 @@ async fn main() -> Result<(), anyhow::Error> {
 
     #[derive(serde::Deserialize)]
     #[serde(rename_all = "camelCase")]
+    struct PathQuery {
+        source_did: String,
+        target_did: String,
+        max_mutuals: usize,
+    }
+    #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct PathResponse {
+        path: Option<Vec<String>>,
+    }
+
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
     struct MutualsQuery {
         did: String,
     }
@@ -215,6 +228,35 @@ async fn main() -> Result<(), anyhow::Error> {
                                         })
                                         .collect(),
                                 }))
+                            }
+                        }
+                    }))
+                .or(warp::path("path")
+                    .and(warp::path::end())
+                    .and(warp::query::<PathQuery>())
+                    .and_then({
+                        let followsdb_env = followsdb_env.clone();
+                        move |q: PathQuery| {
+                            let followsdb_env = followsdb_env.clone();
+                            async move {
+                                let tx = followsdb_env
+                                    .read_txn()
+                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                let followsdb_schema =
+                                    skylight_followsdb::Schema::open(&followsdb_env, &tx).map_err(
+                                        |e| warp::reject::custom(CustomReject(e.into())),
+                                    )?;
+                                let path = query::find_mutuals_path(
+                                    &followsdb_schema,
+                                    &tx,
+                                    &q.source_did,
+                                    &q.target_did,
+                                    std::collections::HashSet::new(),
+                                    10,
+                                    q.max_mutuals,
+                                )
+                                .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                Ok::<_, warp::Rejection>(warp::reply::json(&PathResponse { path }))
                             }
                         }
                     })),

@@ -90,3 +90,105 @@ pub fn neighborhood(
         })
         .collect::<Result<Vec<(String, Vec<String>)>, _>>()
 }
+
+fn build_path(
+    node: &str,
+    source_parents: &std::collections::HashMap<String, Option<String>>,
+    target_parents: &std::collections::HashMap<String, Option<String>>,
+) -> Vec<String> {
+    let mut path = vec![];
+    let mut node = Some(node.to_string());
+
+    while let Some(n) = node.as_ref() {
+        path.push(n.clone());
+        node = source_parents.get(n).cloned().flatten();
+    }
+    path.reverse();
+
+    node = path
+        .last()
+        .and_then(|v| target_parents.get(v))
+        .and_then(|v| v.as_ref())
+        .cloned();
+    while let Some(n) = node.as_ref() {
+        path.push(n.clone());
+        node = target_parents.get(n).cloned().flatten();
+    }
+
+    path
+}
+
+pub fn find_mutuals_path(
+    schema: &skylight_followsdb::Schema,
+    tx: &heed::RoTxn,
+    source: &str,
+    target: &str,
+    ignore: std::collections::HashSet<&str>,
+    max_depth: usize,
+    max_mutuals: usize,
+) -> Result<Option<Vec<String>>, skylight_followsdb::Error> {
+    let mut source_q = std::collections::VecDeque::from([(source.to_string(), 0usize)]);
+    let mut source_visited = std::collections::HashMap::from([(source.to_string(), None)]);
+
+    let mut target_q = std::collections::VecDeque::from([(target.to_string(), 0usize)]);
+    let mut target_visited = std::collections::HashMap::from([(target.to_string(), None)]);
+
+    while !source_q.is_empty() && !target_q.is_empty() {
+        let (q, other_q, visited, other_visited) = if source_q.len() <= target_q.len() {
+            (
+                &mut source_q,
+                &mut target_q,
+                &mut source_visited,
+                &mut target_visited,
+            )
+        } else {
+            (
+                &mut target_q,
+                &mut source_q,
+                &mut target_visited,
+                &mut source_visited,
+            )
+        };
+
+        let (did, depth) = q.pop_front().unwrap();
+        let (_, other_depth) = other_q.front().unwrap();
+
+        if depth + 1 + *other_depth >= max_depth {
+            return Ok(None);
+        }
+
+        let muts = mutuals(schema, tx, &did)?;
+        if max_mutuals > 0 && muts.len() > max_mutuals {
+            continue;
+        }
+        for neighbor in muts {
+            if ignore.contains(neighbor.as_str()) {
+                continue;
+            }
+
+            if visited.contains_key(&neighbor) {
+                continue;
+            }
+            visited.insert(neighbor.clone(), Some(did.clone()));
+            // nodes_expanded += 1;
+
+            q.push_back((neighbor.clone(), depth + 1));
+
+            if other_visited.contains_key(&neighbor) {
+                if source_q.len() <= target_q.len() {
+                    return Ok(Some(build_path(
+                        &neighbor,
+                        &source_visited,
+                        &target_visited,
+                    )));
+                } else {
+                    let mut path = build_path(&neighbor, &target_visited, &source_visited);
+                    path.reverse();
+                    return Ok(Some(path));
+                }
+            }
+        }
+    }
+
+    Ok(Some(vec![]))
+}
