@@ -157,10 +157,20 @@ async fn worker_main(
                         records.push((rkey.to_string(), record));
                     }
 
+                    let actor_id = did_id_assigner.assign(&did).await?;
+
                     let n = records.len();
                     let mut subtx = tx.begin().await?;
+                    sqlx::query!(
+                        r#"
+                        DELETE FROM follows.edges
+                        WHERE actor_id = $1
+                        "#,
+                        actor_id
+                    )
+                    .execute(&mut *subtx)
+                    .await?;
                     for (rkey, record) in records {
-                        let actor_id = did_id_assigner.assign(&did).await?;
                         let subject_id = did_id_assigner.assign(&record.subject).await?;
                         sqlx::query!(
                             r#"
