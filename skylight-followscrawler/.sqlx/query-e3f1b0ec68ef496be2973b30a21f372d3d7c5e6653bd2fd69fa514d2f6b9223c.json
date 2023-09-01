@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                DELETE FROM followscrawler.pending\n                WHERE\n                    did = (\n                        SELECT did\n                        FROM followscrawler.pending\n                        FOR UPDATE\n                        SKIP LOCKED\n                        LIMIT 1\n                    )\n                RETURNING did\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "did",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e3f1b0ec68ef496be2973b30a21f372d3d7c5e6653bd2fd69fa514d2f6b9223c"
+}

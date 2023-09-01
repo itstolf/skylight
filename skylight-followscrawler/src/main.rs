@@ -1,5 +1,6 @@
 use clap::Parser;
 use futures::TryStreamExt;
+use sqlx::Connection;
 use tracing::Instrument;
 
 #[derive(Parser, Debug)]
@@ -25,33 +26,61 @@ type RateLimiter = governor::RateLimiter<
     governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
 >;
 
+async fn get_did_for_id(
+    executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
+    did: &str,
+) -> Result<i32, sqlx::Error> {
+    Ok(sqlx::query!(
+        r#"
+        WITH e AS (
+            INSERT INTO follows.dids (did)
+            VALUES ($1)
+            ON CONFLICT (did) DO
+            NOTHING
+            RETURNING id
+        )
+        SELECT id AS "id!"
+        FROM e
+        UNION
+        SELECT id AS "id!"
+        FROM follows.dids
+        WHERE did = $1
+        "#,
+        did
+    )
+    .fetch_one(executor)
+    .await?
+    .id)
+}
+
 async fn worker_main(
     pds_host: String,
     client: reqwest::Client,
     rl: std::sync::Arc<RateLimiter>,
     queued_notify: std::sync::Arc<tokio::sync::Notify>,
-    env: heed::Env,
-    schema: skylight_followsdb::Schema,
-    queued_db: heed::Database<heed::types::Str, heed::types::Unit>,
-    pending_db: heed::Database<heed::types::Str, heed::types::Unit>,
-    errored_db: heed::Database<heed::types::Str, heed::types::Str>,
+    mut conn: sqlx::PgConnection,
 ) -> Result<(), anyhow::Error> {
     loop {
         loop {
-            let did = 'top: {
-                let mut tx = env.write_txn()?;
-                let did = if let Some((did, _)) = queued_db.first(&tx)? {
-                    did.to_string()
-                } else {
-                    break 'top None;
-                };
-                pending_db.put(&mut tx, &did, &())?;
-                queued_db.delete(&mut tx, &did)?;
-                tx.commit()?;
-                Some(did)
-            };
-
-            let did = if let Some(did) = did {
+            let mut tx = conn.begin().await?;
+            let did = if let Some(did) = sqlx::query!(
+                r#"
+                DELETE FROM followscrawler.pending
+                WHERE
+                    did = (
+                        SELECT did
+                        FROM followscrawler.pending
+                        FOR UPDATE
+                        SKIP LOCKED
+                        LIMIT 1
+                    )
+                RETURNING did
+                "#
+            )
+            .fetch_optional(&mut *tx)
+            .await?
+            .map(|r| r.did)
+            {
                 did
             } else {
                 queued_notify.notified().await;
@@ -60,11 +89,9 @@ async fn worker_main(
             };
 
             if let Err(err) = {
-                let env = env.clone();
-                let rl = std::sync::Arc::clone(&rl);
-                let pds_host = pds_host.clone();
-                let client = client.clone();
-                let schema = schema.clone();
+                let rl = &rl;
+                let pds_host = &pds_host;
+                let client = &client;
                 let did = did.clone();
                 (move || async move {
                     rl.until_ready().await;
@@ -131,28 +158,40 @@ async fn worker_main(
                     }
 
                     let n = records.len();
-                    let mut tx = env.write_txn()?;
                     for (rkey, record) in records {
-                        // Crash if we can't write to followsdb.
-                        skylight_followsdb::writer::add_follow(
-                            &schema,
-                            &mut tx,
-                            &rkey,
-                            &did,
-                            &record.subject,
+                        let actor_id = get_did_for_id(&mut *tx, &did).await?;
+                        let subject_id = get_did_for_id(&mut *tx, &record.subject).await?;
+                        sqlx::query!(
+                            r#"
+                            INSERT INTO follows.edges (actor_id, rkey, subject_id)
+                            VALUES ($1, $2, $3)
+                            ON CONFLICT DO NOTHING
+                            "#,
+                            actor_id,
+                            rkey,
+                            subject_id
                         )
-                        .expect("skylight_followsdb::writer::add_follow");
+                        .execute(&mut *tx)
+                        .await?;
                     }
-                    pending_db.delete(&mut tx, &did)?;
-                    tx.commit()?;
+                    tx.commit().await?;
                     tracing::info!(action = "repo", did = did, n = n);
                     Ok::<_, anyhow::Error>(())
                 })()
                 .await
             } {
-                let mut tx = env.write_txn()?;
-                errored_db.put(&mut tx, &did, &format!("{}", err))?;
-                tx.commit()?;
+                let mut tx = conn.begin().await?;
+                sqlx::query!(
+                    r#"
+                    INSERT INTO followscrawler.errors (did, why)
+                    VALUES ($1, $2)
+                    "#,
+                    did,
+                    format!("{:?}", err)
+                )
+                .execute(&mut *tx)
+                .await?;
+                tx.commit().await?;
             }
         }
     }
@@ -167,24 +206,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let args = Args::parse();
 
-    let mut env_options = heed::EnvOpenOptions::new();
-    env_options
-        .max_dbs(10)
-        .map_size(1 * 1024 * 1024 * 1024 * 1024);
-    let env = env_options.open(args.db_path)?;
-    let mut tx = env.write_txn()?;
-    let schema = skylight_followsdb::Schema::create(&env, &mut tx)?;
-    let meta_db = env.create_database::<heed::types::CowSlice<u8>, heed::types::CowSlice<u8>>(
-        &mut tx,
-        Some("crawler_meta"),
-    )?;
-    let queued_db = env
-        .create_database::<heed::types::Str, heed::types::Unit>(&mut tx, Some("crawler_queued"))?;
-    let pending_db = env
-        .create_database::<heed::types::Str, heed::types::Unit>(&mut tx, Some("crawler_pending"))?;
-    let errored_db = env
-        .create_database::<heed::types::Str, heed::types::Str>(&mut tx, Some("crawler_errored"))?;
-    tx.commit()?;
+    let mut conn = sqlx::postgres::PgConnection::connect(&args.dsn).await?;
 
     let rl = std::sync::Arc::new(governor::RateLimiter::direct(governor::Quota::per_second(
         std::num::NonZeroU32::new(3000 / (5 * 60)).unwrap(),
@@ -197,29 +219,16 @@ async fn main() -> Result<(), anyhow::Error> {
     let workers = (0..args.num_workers)
         .map(|i| {
             tokio::spawn({
+                let dsn = args.dsn.clone();
                 let pds_host = args.pds_host.clone();
                 let client = client.clone();
                 let rl = std::sync::Arc::clone(&rl);
                 let queued_notify = std::sync::Arc::clone(&queued_notify);
-                let env = env.clone();
-                let schema = schema.clone();
-                let queued_db = queued_db.clone();
-                let pending_db = pending_db.clone();
-                let errored_db = errored_db.clone();
                 async move {
-                    worker_main(
-                        pds_host,
-                        client,
-                        rl,
-                        queued_notify,
-                        env,
-                        schema,
-                        queued_db,
-                        pending_db,
-                        errored_db,
-                    )
-                    .instrument(tracing::info_span!("worker", i))
-                    .await
+                    let conn = sqlx::postgres::PgConnection::connect(&dsn).await?;
+                    worker_main(pds_host, client, rl, queued_notify, conn)
+                        .instrument(tracing::info_span!("worker", i))
+                        .await
                 }
             })
         })
@@ -231,7 +240,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .await?
             .map(|v| v.cursor);
 
-        if cursor != Some("") {
+        if cursor != Some("".to_string()) {
             loop {
                 let mut url = format!(
                     "{}/xrpc/com.atproto.sync.listRepos?limit=1000",
@@ -268,13 +277,21 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 let mut tx = conn.begin().await?;
                 for repo in output.repos {
-                    queued_db.put(&mut tx, &repo.did, &())?;
-                    queued_notify.notify_one();
+                    sqlx::query!(
+                        r#"
+                        INSERT INTO followscrawler.pending (did)
+                        VALUES ($1)
+                        ON CONFLICT DO
+                        NOTHING
+                        "#,
+                        repo.did
+                    )
+                    .execute(&mut *tx)
+                    .await?;
                 }
 
                 let c = output.cursor.unwrap_or_else(|| "".to_string());
                 let done = c.is_empty();
-                cursor = Some(c);
                 sqlx::query!(
                     r#"
                     INSERT INTO followscrawler.cursor (cursor)
@@ -286,7 +303,9 @@ async fn main() -> Result<(), anyhow::Error> {
                 )
                 .execute(&mut *tx)
                 .await?;
+                cursor = Some(c);
                 tx.commit().await?;
+                queued_notify.notify_waiters();
 
                 if done {
                     break;

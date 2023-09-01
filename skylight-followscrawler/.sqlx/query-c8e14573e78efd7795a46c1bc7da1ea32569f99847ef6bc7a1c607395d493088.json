@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT cursor FROM followscrawler.cursor",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cursor",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c8e14573e78efd7795a46c1bc7da1ea32569f99847ef6bc7a1c607395d493088"
+}

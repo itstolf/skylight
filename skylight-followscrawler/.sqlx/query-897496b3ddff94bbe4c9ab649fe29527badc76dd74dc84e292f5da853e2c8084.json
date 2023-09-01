@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO followscrawler.errors (did, why)\n                    VALUES ($1, $2)\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "897496b3ddff94bbe4c9ab649fe29527badc76dd74dc84e292f5da853e2c8084"
+}
