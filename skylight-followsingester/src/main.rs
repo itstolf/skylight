@@ -265,15 +265,6 @@ async fn process_message(
             )
             .execute(&mut *tx)
             .await?;
-            sqlx::query!(
-                r#"
-                DELETE FROM follows.dids
-                WHERE did = $1
-                "#,
-                tombstone.did
-            )
-            .execute(&mut *tx)
-            .await?;
             tombstone.seq
         }
         "#handle" => {
