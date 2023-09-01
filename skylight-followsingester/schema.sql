@@ -6,10 +6,10 @@ CREATE TABLE follows.cursor (
 CREATE UNIQUE INDEX cursor_single ON follows.cursor ((0));
 
 CREATE SEQUENCE follows.dids_id_seq
-    AS INT
-    START -2147483648
-    MINVALUE -2147483648
-    NO MAXVALUE;
+AS INT -- noqa: PRS
+START -2147483648
+MINVALUE -2147483648
+NO MAXVALUE;
 
 CREATE TABLE follows.dids (
     id INT NOT NULL PRIMARY KEY DEFAULT nextval(
