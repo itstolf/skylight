@@ -1,8 +1,6 @@
 use clap::Parser;
 use warp::Filter;
 
-mod query;
-
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -99,24 +97,21 @@ async fn main() -> Result<(), anyhow::Error> {
                             let pool = pool.clone();
 
                             async move {
-                                // let tx = pool
-                                //     .read_txn()
-                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                // let plcdb_schema = skylight_plcdb::Schema::open(&pool, &tx)
-                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                // let a = query::akas(
-                                //     &plcdb_schema,
-                                //     &tx,
-                                //     &q.iter()
-                                //         .filter(|(k, _)| k == "did")
-                                //         .map(|(_, v)| v.as_str())
-                                //         .collect::<Vec<_>>(),
-                                // )
-                                // .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                // Ok::<_, warp::Rejection>(warp::reply::json(&AkaResponse {
-                                //     akas: a,
-                                // }))
-                                todo!()
+                                Ok::<_, warp::Rejection>(warp::reply::json(&AkaResponse {
+                                    akas: sqlx::query!(
+                                        "SELECT did, also_known_as FROM plc.dids WHERE did = ANY($1)",
+                                        &q.iter()
+                                            .filter(|(k, _)| k == "did")
+                                            .map(|(_, v)| v.to_string())
+                                            .collect::<Vec<_>>()
+                                    )
+                                    .fetch_all(&pool)
+                                    .await
+                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
+                                    .into_iter()
+                                    .map(|r| (r.did, r.also_known_as))
+                                    .collect(),
+                                }))
                             }
                         }
                     }))
