@@ -123,8 +123,8 @@ while source_q and target_q:
     if depth + 1 + other_depth >= max_depth:
         return [None, nodes_expanded]
 
-    rows = plpy.execute(mutuals_plan, [id, ignore_ids, max_mutuals + 1 if max_mutuals is not None else None])
-    if max_mutuals is not None and len(rows) > max_mutuals:
+    rows = plpy.execute(mutuals_plan, [id, ignore_ids, max_mutuals + 1 if max_mutuals > 0 else None])
+    if max_mutuals > 0 and len(rows) > max_mutuals:
         continue
 
     for row in rows:
