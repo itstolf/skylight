@@ -92,6 +92,7 @@ async fn worker_main(
                 let client = &client;
                 let did_id_assigner = &mut did_id_assigner;
                 let did = did.clone();
+                let tx = &mut tx;
                 (move || async move {
                     rl.until_ready().await;
                     let repo = tokio::time::timeout(
@@ -170,10 +171,9 @@ async fn worker_main(
                             rkey,
                             subject_id
                         )
-                        .execute(&mut *tx)
+                        .execute(&mut **tx)
                         .await?;
                     }
-                    tx.commit().await?;
                     tracing::info!(action = "repo", did = did, n = n);
                     Ok::<_, anyhow::Error>(())
                 })()
@@ -181,7 +181,6 @@ async fn worker_main(
             } {
                 let why = format!("{:?}", err);
                 tracing::error!(did, why);
-                let mut tx = conn.begin().await?;
                 sqlx::query!(
                     r#"
                     INSERT INTO followscrawler.errors (did, why)
@@ -192,8 +191,8 @@ async fn worker_main(
                 )
                 .execute(&mut *tx)
                 .await?;
-                tx.commit().await?;
             }
+            tx.commit().await?;
         }
     }
 }
