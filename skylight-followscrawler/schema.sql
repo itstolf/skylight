@@ -11,5 +11,6 @@ CREATE TABLE followscrawler.pending (
 
 CREATE TABLE followscrawler.errors (
     did TEXT PRIMARY KEY,
-    why TEXT NOT NULL
+    why TEXT NOT NULL,
+    ts TIMESTAMPTZ DEFAULT NOW()
 );
