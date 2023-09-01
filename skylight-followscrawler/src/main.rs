@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use clap::Parser;
 use futures::TryStreamExt;
 use sqlx::Connection;
@@ -26,31 +28,26 @@ type RateLimiter = governor::RateLimiter<
     governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
 >;
 
-async fn get_did_for_id(
-    executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
-    did: &str,
-) -> Result<i32, sqlx::Error> {
-    Ok(sqlx::query!(
-        r#"
-        WITH e AS (
+struct DidIdAssginer {
+    conn: sqlx::postgres::PgConnection,
+}
+
+impl DidIdAssginer {
+    async fn assign(&mut self, did: &str) -> Result<i32, sqlx::Error> {
+        Ok(sqlx::query!(
+            r#"
             INSERT INTO follows.dids (did)
             VALUES ($1)
             ON CONFLICT (did) DO
-            NOTHING
+            UPDATE SET did = excluded.did
             RETURNING id
+            "#,
+            did
         )
-        SELECT id AS "id!"
-        FROM e
-        UNION
-        SELECT id AS "id!"
-        FROM follows.dids
-        WHERE did = $1
-        "#,
-        did
-    )
-    .fetch_one(executor)
-    .await?
-    .id)
+        .fetch_one(&mut self.conn)
+        .await?
+        .id)
+    }
 }
 
 async fn worker_main(
@@ -59,6 +56,7 @@ async fn worker_main(
     rl: std::sync::Arc<RateLimiter>,
     queued_notify: std::sync::Arc<tokio::sync::Notify>,
     mut conn: sqlx::PgConnection,
+    mut did_id_assigner: DidIdAssginer,
 ) -> Result<(), anyhow::Error> {
     loop {
         loop {
@@ -92,6 +90,7 @@ async fn worker_main(
                 let rl = &rl;
                 let pds_host = &pds_host;
                 let client = &client;
+                let did_id_assigner = &mut did_id_assigner;
                 let did = did.clone();
                 (move || async move {
                     rl.until_ready().await;
@@ -159,8 +158,8 @@ async fn worker_main(
 
                     let n = records.len();
                     for (rkey, record) in records {
-                        let actor_id = get_did_for_id(&mut *tx, &did).await?;
-                        let subject_id = get_did_for_id(&mut *tx, &record.subject).await?;
+                        let actor_id = did_id_assigner.assign(&did).await?;
+                        let subject_id = did_id_assigner.assign(&record.subject).await?;
                         sqlx::query!(
                             r#"
                             INSERT INTO follows.edges (actor_id, rkey, subject_id)
@@ -180,6 +179,8 @@ async fn worker_main(
                 })()
                 .await
             } {
+                let why = format!("{:?}", err);
+                tracing::error!(did, why);
                 let mut tx = conn.begin().await?;
                 sqlx::query!(
                     r#"
@@ -187,7 +188,7 @@ async fn worker_main(
                     VALUES ($1, $2)
                     "#,
                     did,
-                    format!("{:?}", err)
+                    why
                 )
                 .execute(&mut *tx)
                 .await?;
@@ -206,7 +207,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let args = Args::parse();
 
-    let mut conn = sqlx::postgres::PgConnection::connect(&args.dsn).await?;
+    let conn_options = sqlx::postgres::PgConnectOptions::from_str(&args.dsn)?;
+    let mut conn = sqlx::postgres::PgConnection::connect_with(&conn_options).await?;
 
     let rl = std::sync::Arc::new(governor::RateLimiter::direct(governor::Quota::per_second(
         std::num::NonZeroU32::new(3000 / (5 * 60)).unwrap(),
@@ -219,14 +221,17 @@ async fn main() -> Result<(), anyhow::Error> {
     let workers = (0..args.num_workers)
         .map(|i| {
             tokio::spawn({
-                let dsn = args.dsn.clone();
+                let conn_options = conn_options.clone();
                 let pds_host = args.pds_host.clone();
                 let client = client.clone();
                 let rl = std::sync::Arc::clone(&rl);
                 let queued_notify = std::sync::Arc::clone(&queued_notify);
                 async move {
-                    let conn = sqlx::postgres::PgConnection::connect(&dsn).await?;
-                    worker_main(pds_host, client, rl, queued_notify, conn)
+                    let conn = sqlx::postgres::PgConnection::connect_with(&conn_options).await?;
+                    let did_id_assigner = DidIdAssginer {
+                        conn: sqlx::postgres::PgConnection::connect_with(&conn_options).await?,
+                    };
+                    worker_main(pds_host, client, rl, queued_notify, conn, did_id_assigner)
                         .instrument(tracing::info_span!("worker", i))
                         .await
                 }

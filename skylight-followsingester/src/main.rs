@@ -1,5 +1,7 @@
 mod firehose;
 
+use std::str::FromStr;
+
 use clap::Parser;
 use futures::{SinkExt, StreamExt};
 use sqlx::Connection;
@@ -15,6 +17,28 @@ struct Args {
     firehose_host: String,
 }
 
+struct DidIdAssginer {
+    conn: sqlx::postgres::PgConnection,
+}
+
+impl DidIdAssginer {
+    async fn assign(&mut self, did: &str) -> Result<i32, sqlx::Error> {
+        Ok(sqlx::query!(
+            r#"
+            INSERT INTO follows.dids (did)
+            VALUES ($1)
+            ON CONFLICT (did) DO
+            UPDATE SET did = excluded.did
+            RETURNING id
+            "#,
+            did
+        )
+        .fetch_one(&mut self.conn)
+        .await?
+        .id)
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let subscriber = tracing_subscriber::FmtSubscriber::builder()
@@ -24,7 +48,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let args = Args::parse();
 
-    let mut conn = sqlx::postgres::PgConnection::connect(&args.dsn).await?;
+    let conn_options = sqlx::postgres::PgConnectOptions::from_str(&args.dsn)?;
+    let mut conn = sqlx::postgres::PgConnection::connect_with(&conn_options).await?;
+    let mut did_id_assigner = DidIdAssginer {
+        conn: sqlx::postgres::PgConnection::connect_with(&conn_options).await?,
+    };
 
     let mut url = format!(
         "{}/xrpc/com.atproto.sync.subscribeRepos",
@@ -59,7 +87,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 } else {
                     continue;
                 };
-                process_message(&mut conn, &msg)
+                process_message(&mut conn, &mut did_id_assigner, &msg)
                     .instrument(tracing::info_span!("process_message"))
                     .await?;
             }
@@ -82,35 +110,9 @@ struct FirehoseError {
     message: Option<String>,
 }
 
-async fn get_did_for_id(
-    executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
-    did: &str,
-) -> Result<i32, sqlx::Error> {
-    Ok(sqlx::query!(
-        r#"
-        WITH e AS (
-            INSERT INTO follows.dids (did)
-            VALUES ($1)
-            ON CONFLICT (did) DO
-            NOTHING
-            RETURNING id
-        )
-        SELECT id AS "id!"
-        FROM e
-        UNION
-        SELECT id AS "id!"
-        FROM follows.dids
-        WHERE did = $1
-        "#,
-        did
-    )
-    .fetch_one(executor)
-    .await?
-    .id)
-}
-
 async fn process_message(
     conn: &mut sqlx::postgres::PgConnection,
+    did_id_assigner: &mut DidIdAssginer,
     message: &[u8],
 ) -> Result<(), anyhow::Error> {
     let mut cursor = std::io::Cursor::new(message);
@@ -193,8 +195,8 @@ async fn process_message(
                             }
                         };
 
-                        let actor_id = get_did_for_id(&mut *tx, &commit.repo).await?;
-                        let subject_id = get_did_for_id(&mut *tx, &record.subject).await?;
+                        let actor_id = did_id_assigner.assign(&commit.repo).await?;
+                        let subject_id = did_id_assigner.assign(&record.subject).await?;
                         sqlx::query!(
                             r#"
                             INSERT INTO follows.edges (actor_id, rkey, subject_id)
