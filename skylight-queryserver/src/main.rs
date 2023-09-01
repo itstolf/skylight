@@ -63,7 +63,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let args = Args::parse();
 
-    let mut pool = sqlx::postgres::PgPool::connect(&args.dsn).await?;
+    let pool = sqlx::postgres::PgPool::connect(&args.dsn).await?;
 
     #[derive(serde::Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -216,19 +216,42 @@ async fn main() -> Result<(), anyhow::Error> {
                                     return Err(warp::reject::not_found());
                                 };
 
-                                // let tx = pool
-                                //     .read_txn()
-                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                // let followsdb_schema = skylight_followsdb::Schema::open(&pool, &tx)
-                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                // let mutuals = query::mutuals(&followsdb_schema, &tx, &q.did)
-                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
-                                //     .collect::<Result<Vec<_>, skylight_followsdb::Error>>()
-                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                // Ok::<_, warp::Rejection>(warp::reply::json(&MutualsResponse {
-                                //     mutuals,
-                                // }))
-                                todo!()
+                                let rows = sqlx::query!(
+                                    r#"
+                                    SELECT i.subject_id
+                                    FROM follows.edges AS i
+                                    INNER JOIN
+                                        follows.edges AS o
+                                        ON i.actor_id = o.subject_id AND i.subject_id = o.actor_id
+                                    WHERE i.actor_id = $1
+                                    GROUP BY i.subject_id
+                                    "#,
+                                    id
+                                )
+                                .fetch_all(&pool)
+                                .await
+                                .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+
+                                let output_dids = get_dids_for_ids(
+                                    &pool,
+                                    &rows.iter().map(|row| row.subject_id).collect::<Vec<_>>(),
+                                )
+                                .await
+                                .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+
+                                Ok::<_, warp::Rejection>(warp::reply::json(&MutualsResponse {
+                                    mutuals: rows
+                                        .iter()
+                                        .map(|row| {
+                                            output_dids.get(&row.subject_id).cloned().ok_or_else(
+                                                || anyhow::format_err!("unknown id: {}", id),
+                                            )
+                                        })
+                                        .collect::<Result<Vec<_>, _>>()
+                                        .map_err(|e| {
+                                            warp::reject::custom(CustomReject(e.into()))
+                                        })?,
+                                }))
                             }
                         }
                     }))
