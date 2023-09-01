@@ -9,11 +9,8 @@ struct Args {
     #[arg(long, default_value = "[::]:1991")]
     listen: std::net::SocketAddr,
 
-    #[arg(long)]
-    plcdb_path: std::path::PathBuf,
-
-    #[arg(long)]
-    followsdb_path: std::path::PathBuf,
+    #[arg(long, default_value = "postgres:///skygraph")]
+    dsn: String,
 }
 
 #[derive(Debug)]
@@ -30,27 +27,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let args = Args::parse();
 
-    let plcdb_env = {
-        let mut env_options = heed::EnvOpenOptions::new();
-        env_options
-            .max_dbs(10)
-            .map_size(1 * 1024 * 1024 * 1024 * 1024);
-        unsafe {
-            env_options.flags(heed::EnvFlags::READ_ONLY);
-        }
-        env_options.open(args.plcdb_path)?
-    };
-
-    let followsdb_env = {
-        let mut env_options = heed::EnvOpenOptions::new();
-        env_options
-            .max_dbs(10)
-            .map_size(1 * 1024 * 1024 * 1024 * 1024);
-        unsafe {
-            env_options.flags(heed::EnvFlags::READ_ONLY);
-        }
-        env_options.open(args.followsdb_path)?
-    };
+    let mut pool = sqlx::postgres::PgPool::connect(&args.dsn).await?;
 
     #[derive(serde::Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -117,28 +94,29 @@ async fn main() -> Result<(), anyhow::Error> {
                     .and(warp::path::end())
                     .and(warp::query::<Vec<(String, String)>>())
                     .and_then({
-                        let plcdb_env = plcdb_env.clone();
+                        let pool = pool.clone();
                         move |q: Vec<(String, String)>| {
-                            let plcdb_env = plcdb_env.clone();
+                            let pool = pool.clone();
 
                             async move {
-                                let tx = plcdb_env
-                                    .read_txn()
-                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                let plcdb_schema = skylight_plcdb::Schema::open(&plcdb_env, &tx)
-                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                let a = query::akas(
-                                    &plcdb_schema,
-                                    &tx,
-                                    &q.iter()
-                                        .filter(|(k, _)| k == "did")
-                                        .map(|(_, v)| v.as_str())
-                                        .collect::<Vec<_>>(),
-                                )
-                                .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                Ok::<_, warp::Rejection>(warp::reply::json(&AkaResponse {
-                                    akas: a,
-                                }))
+                                // let tx = pool
+                                //     .read_txn()
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // let plcdb_schema = skylight_plcdb::Schema::open(&pool, &tx)
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // let a = query::akas(
+                                //     &plcdb_schema,
+                                //     &tx,
+                                //     &q.iter()
+                                //         .filter(|(k, _)| k == "did")
+                                //         .map(|(_, v)| v.as_str())
+                                //         .collect::<Vec<_>>(),
+                                // )
+                                // .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // Ok::<_, warp::Rejection>(warp::reply::json(&AkaResponse {
+                                //     akas: a,
+                                // }))
+                                todo!()
                             }
                         }
                     }))
@@ -146,27 +124,28 @@ async fn main() -> Result<(), anyhow::Error> {
                     .and(warp::path::end())
                     .and(warp::query::<WhoisQuery>())
                     .and_then({
-                        let plcdb_env = plcdb_env.clone();
+                        let pool = pool.clone();
                         move |q: WhoisQuery| {
-                            let plcdb_env = plcdb_env.clone();
+                            let pool = pool.clone();
                             async move {
-                                let tx = plcdb_env
-                                    .read_txn()
-                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                let plcdb_schema = skylight_plcdb::Schema::open(&plcdb_env, &tx)
-                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                let (did, also_known_as) = if let Some(w) =
-                                    query::whois(&plcdb_schema, &tx, &q.actor)
-                                        .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
-                                {
-                                    w
-                                } else {
-                                    return Err(warp::reject::not_found());
-                                };
-                                Ok::<_, warp::Rejection>(warp::reply::json(&WhoisResponse {
-                                    did,
-                                    also_known_as,
-                                }))
+                                // let tx = pool
+                                //     .read_txn()
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // let plcdb_schema = skylight_plcdb::Schema::open(&pool, &tx)
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // let (did, also_known_as) = if let Some(w) =
+                                //     query::whois(&plcdb_schema, &tx, &q.actor)
+                                //         .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
+                                // {
+                                //     w
+                                // } else {
+                                //     return Err(warp::reject::not_found());
+                                // };
+                                // Ok::<_, warp::Rejection>(warp::reply::json(&WhoisResponse {
+                                //     did,
+                                //     also_known_as,
+                                // }))
+                                todo!()
                             }
                         }
                     }))
@@ -174,24 +153,23 @@ async fn main() -> Result<(), anyhow::Error> {
                     .and(warp::path::end())
                     .and(warp::query::<MutualsQuery>())
                     .and_then({
-                        let followsdb_env = followsdb_env.clone();
+                        let pool = pool.clone();
                         move |q: MutualsQuery| {
-                            let followsdb_env = followsdb_env.clone();
+                            let pool = pool.clone();
                             async move {
-                                let tx = followsdb_env
-                                    .read_txn()
-                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                let followsdb_schema =
-                                    skylight_followsdb::Schema::open(&followsdb_env, &tx).map_err(
-                                        |e| warp::reject::custom(CustomReject(e.into())),
-                                    )?;
-                                let mutuals = query::mutuals(&followsdb_schema, &tx, &q.did)
-                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
-                                    .collect::<Result<Vec<_>, skylight_followsdb::Error>>()
-                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                Ok::<_, warp::Rejection>(warp::reply::json(&MutualsResponse {
-                                    mutuals,
-                                }))
+                                // let tx = pool
+                                //     .read_txn()
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // let followsdb_schema = skylight_followsdb::Schema::open(&pool, &tx)
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // let mutuals = query::mutuals(&followsdb_schema, &tx, &q.did)
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
+                                //     .collect::<Result<Vec<_>, skylight_followsdb::Error>>()
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // Ok::<_, warp::Rejection>(warp::reply::json(&MutualsResponse {
+                                //     mutuals,
+                                // }))
+                                todo!()
                             }
                         }
                     }))
@@ -199,38 +177,37 @@ async fn main() -> Result<(), anyhow::Error> {
                     .and(warp::path::end())
                     .and(warp::query::<NeighborhoodQuery>())
                     .and_then({
-                        let followsdb_env = followsdb_env.clone();
+                        let pool = pool.clone();
                         move |q: NeighborhoodQuery| {
-                            let followsdb_env = followsdb_env.clone();
+                            let pool = pool.clone();
                             async move {
-                                let tx = followsdb_env
-                                    .read_txn()
-                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                let followsdb_schema =
-                                    skylight_followsdb::Schema::open(&followsdb_env, &tx).map_err(
-                                        |e| warp::reject::custom(CustomReject(e.into())),
-                                    )?;
-                                let neighborhood =
-                                    query::neighborhood(&followsdb_schema, &tx, &q.did).map_err(
-                                        |e| warp::reject::custom(CustomReject(e.into())),
-                                    )?;
-                                let node_to_index = neighborhood
-                                    .iter()
-                                    .map(|(k, _)| k.clone())
-                                    .enumerate()
-                                    .map(|(k, v)| (v, k))
-                                    .collect::<std::collections::HashMap<String, usize>>();
-                                Ok::<_, warp::Rejection>(warp::reply::json(&NeighborhoodResponse {
-                                    nodes: neighborhood.iter().map(|(k, _)| k.clone()).collect(),
-                                    edges: neighborhood
-                                        .iter()
-                                        .map(|(_, v)| {
-                                            v.iter()
-                                                .flat_map(|n| node_to_index.get(n).cloned())
-                                                .collect()
-                                        })
-                                        .collect(),
-                                }))
+                                // let tx = pool
+                                //     .read_txn()
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // let followsdb_schema = skylight_followsdb::Schema::open(&pool, &tx)
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // let neighborhood =
+                                //     query::neighborhood(&followsdb_schema, &tx, &q.did).map_err(
+                                //         |e| warp::reject::custom(CustomReject(e.into())),
+                                //     )?;
+                                // let node_to_index = neighborhood
+                                //     .iter()
+                                //     .map(|(k, _)| k.clone())
+                                //     .enumerate()
+                                //     .map(|(k, v)| (v, k))
+                                //     .collect::<std::collections::HashMap<String, usize>>();
+                                // Ok::<_, warp::Rejection>(warp::reply::json(&NeighborhoodResponse {
+                                //     nodes: neighborhood.iter().map(|(k, _)| k.clone()).collect(),
+                                //     edges: neighborhood
+                                //         .iter()
+                                //         .map(|(_, v)| {
+                                //             v.iter()
+                                //                 .flat_map(|n| node_to_index.get(n).cloned())
+                                //                 .collect()
+                                //         })
+                                //         .collect(),
+                                // }))
+                                todo!()
                             }
                         }
                     }))
@@ -238,28 +215,27 @@ async fn main() -> Result<(), anyhow::Error> {
                     .and(warp::path::end())
                     .and(warp::query::<PathQuery>())
                     .and_then({
-                        let followsdb_env = followsdb_env.clone();
+                        let pool = pool.clone();
                         move |q: PathQuery| {
-                            let followsdb_env = followsdb_env.clone();
+                            let pool = pool.clone();
                             async move {
-                                let tx = followsdb_env
-                                    .read_txn()
-                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                let followsdb_schema =
-                                    skylight_followsdb::Schema::open(&followsdb_env, &tx).map_err(
-                                        |e| warp::reject::custom(CustomReject(e.into())),
-                                    )?;
-                                let path = query::find_mutuals_path(
-                                    &followsdb_schema,
-                                    &tx,
-                                    &q.source_did,
-                                    &q.target_did,
-                                    std::collections::HashSet::new(),
-                                    10,
-                                    q.max_mutuals,
-                                )
-                                .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                Ok::<_, warp::Rejection>(warp::reply::json(&PathResponse { path }))
+                                // let tx = pool
+                                //     .read_txn()
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // let followsdb_schema = skylight_followsdb::Schema::open(&pool, &tx)
+                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // let path = query::find_mutuals_path(
+                                //     &followsdb_schema,
+                                //     &tx,
+                                //     &q.source_did,
+                                //     &q.target_did,
+                                //     std::collections::HashSet::new(),
+                                //     10,
+                                //     q.max_mutuals,
+                                // )
+                                // .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+                                // Ok::<_, warp::Rejection>(warp::reply::json(&PathResponse { path }))
+                                todo!()
                             }
                         }
                     })),

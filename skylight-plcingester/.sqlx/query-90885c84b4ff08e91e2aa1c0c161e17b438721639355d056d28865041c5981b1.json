@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO plc.cursor (cursor) VALUES ($1) ON CONFLICT ((0)) DO UPDATE SET cursor = excluded.cursor",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "90885c84b4ff08e91e2aa1c0c161e17b438721639355d056d28865041c5981b1"
+}

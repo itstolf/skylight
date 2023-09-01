@@ -1,20 +1,19 @@
 mod firehose;
-use byteorder::ByteOrder;
+
 use clap::Parser;
 use futures::{SinkExt, StreamExt};
+use sqlx::Connection;
 use tracing::Instrument;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(long)]
-    db_path: std::path::PathBuf,
+    #[arg(long, default_value = "postgres:///skygraph")]
+    dsn: String,
 
     #[arg(long, default_value = "wss://bsky.social")]
     firehose_host: String,
 }
-
-type MetaDB = heed::Database<heed::types::CowSlice<u8>, heed::types::CowSlice<u8>>;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -25,31 +24,21 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let args = Args::parse();
 
-    let mut env_options = heed::EnvOpenOptions::new();
-    env_options
-        .max_dbs(10)
-        .map_size(1 * 1024 * 1024 * 1024 * 1024);
-    let env = env_options.open(args.db_path)?;
-    let mut tx = env.write_txn()?;
-    let schema = skylight_followsdb::Schema::create(&env, &mut tx)?;
-    let meta_db: MetaDB = env.create_database(&mut tx, Some("ingester_meta"))?;
-    tx.commit()?;
-
-    let cursor = {
-        let tx = env.read_txn()?;
-        meta_db
-            .get(&tx, "cursor".as_bytes())?
-            .map(|v| byteorder::LittleEndian::read_i64(&v))
-            .unwrap_or(-1)
-    };
-    tracing::info!(message = "cursor", cursor = cursor);
+    let mut conn = sqlx::postgres::PgConnection::connect(&args.dsn).await?;
 
     let mut url = format!(
         "{}/xrpc/com.atproto.sync.subscribeRepos",
         args.firehose_host
     );
-    if cursor >= 0 {
+    if let Some(cursor) = sqlx::query!("SELECT cursor FROM follows.cursor")
+        .fetch_optional(&mut conn)
+        .await?
+        .map(|v| v.cursor)
+    {
+        tracing::info!(cursor = cursor);
         url.push_str(&format!("?cursor={cursor}"));
+    } else {
+        tracing::info!("no cursor");
     }
 
     let (stream, _) = tokio_tungstenite::connect_async(url).await?;
@@ -70,7 +59,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 } else {
                     continue;
                 };
-                process_message(&env, &schema, &meta_db, &msg)
+                process_message(&mut conn, &msg)
                     .instrument(tracing::info_span!("process_message"))
                     .await?;
             }
@@ -93,10 +82,35 @@ struct FirehoseError {
     message: Option<String>,
 }
 
+async fn get_did_for_id(
+    executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
+    did: &str,
+) -> Result<i32, sqlx::Error> {
+    Ok(sqlx::query!(
+        r#"
+        WITH e AS (
+            INSERT INTO follows.dids (did)
+            VALUES ($1)
+            ON CONFLICT (did) DO
+            NOTHING
+            RETURNING id
+        )
+        SELECT id AS "id!"
+        FROM e
+        UNION
+        SELECT id AS "id!"
+        FROM follows.dids
+        WHERE did = $1
+        "#,
+        did
+    )
+    .fetch_one(executor)
+    .await?
+    .id)
+}
+
 async fn process_message(
-    env: &heed::Env,
-    schema: &skylight_followsdb::Schema,
-    meta_db: &MetaDB,
+    conn: &mut sqlx::postgres::PgConnection,
     message: &[u8],
 ) -> Result<(), anyhow::Error> {
     let mut cursor = std::io::Cursor::new(message);
@@ -117,7 +131,7 @@ async fn process_message(
         ));
     }
 
-    let mut tx = env.write_txn()?;
+    let mut tx = conn.begin().await?;
     let seq = match frame.r#type.unwrap_or_else(|| "".to_string()).as_str() {
         "#info" => {
             let info: firehose::Info = ciborium::from_reader(&mut cursor)?;
@@ -138,7 +152,7 @@ async fn process_message(
                     continue;
                 }
 
-                let items = match rs_car::car_read_all(&mut commit.blocks.as_slice(), true).await {
+                let items = match rs_car::car_read_all(&mut &commit.blocks[..], true).await {
                     Ok((parsed, _)) => parsed
                         .into_iter()
                         .collect::<std::collections::HashMap<_, _>>(),
@@ -179,15 +193,20 @@ async fn process_message(
                             }
                         };
 
-                        // Crash if we can't write to followsdb.
-                        skylight_followsdb::writer::add_follow(
-                            schema,
-                            &mut tx,
+                        let actor_id = get_did_for_id(&mut *tx, &commit.repo).await?;
+                        let subject_id = get_did_for_id(&mut *tx, &record.subject).await?;
+                        sqlx::query!(
+                            r#"
+                            INSERT INTO follows.edges (actor_id, rkey, subject_id)
+                            VALUES ($1, $2, $3)
+                            ON CONFLICT DO NOTHING
+                            "#,
+                            actor_id,
                             rkey,
-                            &commit.repo,
-                            &record.subject,
+                            subject_id
                         )
-                        .expect("skylight_followsdb::writer::add_follow");
+                        .execute(&mut *tx)
+                        .await?;
                         tracing::info!(
                             action = "create follow",
                             seq = commit.seq,
@@ -197,9 +216,23 @@ async fn process_message(
                         )
                     }
                     "delete" => {
-                        // Crash if we can't write to followsdb.
-                        skylight_followsdb::writer::delete_follow(schema, &mut tx, rkey)
-                            .expect("skylight_followsdb::writer::delete_follow");
+                        sqlx::query!(
+                            r#"
+                            WITH ids AS (
+                                SELECT id
+                                FROM follows.dids
+                                WHERE did = $1
+                            )
+                            DELETE FROM follows.edges
+                            WHERE
+                                actor_id IN (SELECT id FROM ids) AND
+                                rkey = $2
+                            "#,
+                            commit.repo,
+                            rkey,
+                        )
+                        .execute(&mut *tx)
+                        .await?;
                         tracing::info!(
                             action = "delete follow",
                             seq = commit.seq,
@@ -216,14 +249,31 @@ async fn process_message(
         }
         "#tombstone" => {
             let tombstone: firehose::Tombstone = ciborium::from_reader(&mut cursor)?;
-            // Crash if we can't write to followsdb.
-            skylight_followsdb::writer::delete_actor(schema, &mut tx, &tombstone.did)
-                .expect("skylight_followsdb::writer::delete_actor");
-            tracing::info!(
-                action = "delete actor",
-                seq = tombstone.seq,
-                actor_did = tombstone.did
-            );
+            sqlx::query!(
+                r#"
+                WITH ids AS (
+                    SELECT id
+                    FROM follows.dids
+                    WHERE did = $1
+                )
+                DELETE FROM follows.edges
+                WHERE
+                    actor_id IN (SELECT id FROM ids) OR
+                    subject_id IN (SELECT id FROM ids)
+                "#,
+                tombstone.did
+            )
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query!(
+                r#"
+                DELETE FROM follows.dids
+                WHERE did = $1
+                "#,
+                tombstone.did
+            )
+            .execute(&mut *tx)
+            .await?;
             tombstone.seq
         }
         "#handle" => {
@@ -238,12 +288,17 @@ async fn process_message(
             return Ok(());
         }
     };
-    let mut buf = [0u8; 8];
-    byteorder::LittleEndian::write_i64(&mut buf, seq);
-    // Crash if we can't write the cursor.
-    meta_db
-        .put(&mut tx, "cursor".as_bytes(), &buf)
-        .expect("write cursor");
-    tx.commit()?;
+    sqlx::query!(
+        r#"
+        INSERT INTO follows.cursor (cursor)
+        VALUES ($1)
+        ON CONFLICT ((0)) DO
+        UPDATE SET cursor = excluded.cursor
+        "#,
+        seq
+    )
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
     Ok(())
 }

@@ -5,8 +5,8 @@ use tracing::Instrument;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(long)]
-    db_path: std::path::PathBuf,
+    #[arg(long, default_value = "postgres:///skygraph")]
+    dsn: String,
 
     #[arg(long, default_value = "https://bsky.social")]
     pds_host: String,
@@ -186,26 +186,6 @@ async fn main() -> Result<(), anyhow::Error> {
         .create_database::<heed::types::Str, heed::types::Str>(&mut tx, Some("crawler_errored"))?;
     tx.commit()?;
 
-    // Before we start, we should move all the pending items back into the queue as they were incompletely processed.
-    {
-        let mut tx = env.write_txn()?;
-        let mut keys = vec![];
-        {
-            let mut iter = pending_db.iter_mut(&mut tx)?;
-            while let Some(k) = iter.next() {
-                let (k, _) = k?;
-                keys.push(k.to_string());
-                unsafe {
-                    iter.del_current()?;
-                }
-            }
-        }
-        for k in keys {
-            queued_db.put(&mut tx, &k, &())?;
-        }
-        tx.commit()?;
-    }
-
     let rl = std::sync::Arc::new(governor::RateLimiter::direct(governor::Quota::per_second(
         std::num::NonZeroU32::new(3000 / (5 * 60)).unwrap(),
     )));
@@ -246,58 +226,71 @@ async fn main() -> Result<(), anyhow::Error> {
         .collect::<Vec<_>>();
 
     if !args.only_crawl_queued_repos {
-        let mut cursor = "".to_string();
-        loop {
-            let mut url = format!(
-                "{}/xrpc/com.atproto.sync.listRepos?limit=1000",
-                args.pds_host
-            );
-            if cursor != "" {
-                url.push_str(&format!("&cursor={}", cursor));
-            }
+        let mut cursor = sqlx::query!("SELECT cursor FROM followscrawler.cursor")
+            .fetch_optional(&mut conn)
+            .await?
+            .map(|v| v.cursor);
 
-            #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
-            #[serde(rename_all = "camelCase")]
-            struct Output {
-                cursor: Option<String>,
-                repos: Vec<Repo>,
-            }
+        if cursor != Some("") {
+            loop {
+                let mut url = format!(
+                    "{}/xrpc/com.atproto.sync.listRepos?limit=1000",
+                    args.pds_host
+                );
+                if let Some(cursor) = cursor.as_ref() {
+                    url.push_str(&format!("&cursor={}", cursor));
+                }
 
-            #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
-            #[serde(rename_all = "camelCase")]
-            struct Repo {
-                did: String,
-                head: String,
-            }
+                #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+                #[serde(rename_all = "camelCase")]
+                struct Output {
+                    cursor: Option<String>,
+                    repos: Vec<Repo>,
+                }
 
-            rl.until_ready().await;
-            let output: Output = serde_json::from_slice(
-                &client
-                    .get(url)
-                    .send()
-                    .await?
-                    .error_for_status()?
-                    .bytes()
-                    .await?,
-            )?;
+                #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+                #[serde(rename_all = "camelCase")]
+                struct Repo {
+                    did: String,
+                    head: String,
+                }
 
-            let mut tx = env.write_txn()?;
-            for repo in output.repos {
-                queued_db.put(&mut tx, &repo.did, &())?;
-                queued_notify.notify_one();
-            }
+                rl.until_ready().await;
+                let output: Output = serde_json::from_slice(
+                    &client
+                        .get(url)
+                        .send()
+                        .await?
+                        .error_for_status()?
+                        .bytes()
+                        .await?,
+                )?;
 
-            let still_going = if let Some(c) = output.cursor {
-                cursor = c;
-                meta_db.put(&mut tx, "cursor".as_bytes(), cursor.as_bytes())?;
-                true
-            } else {
-                false
-            };
-            tx.commit()?;
+                let mut tx = conn.begin().await?;
+                for repo in output.repos {
+                    queued_db.put(&mut tx, &repo.did, &())?;
+                    queued_notify.notify_one();
+                }
 
-            if !still_going {
-                break;
+                let c = output.cursor.unwrap_or_else(|| "".to_string());
+                let done = c.is_empty();
+                cursor = Some(c);
+                sqlx::query!(
+                    r#"
+                    INSERT INTO followscrawler.cursor (cursor)
+                    VALUES ($1)
+                    ON CONFLICT ((0)) DO
+                    UPDATE SET cursor = excluded.cursor
+                    "#,
+                    c
+                )
+                .execute(&mut *tx)
+                .await?;
+                tx.commit().await?;
+
+                if done {
+                    break;
+                }
             }
         }
     }

@@ -23,46 +23,16 @@ impl Blockstore {
         Some(self.get_by_cid(self.mst.get(key)?)?)
     }
 
-    pub fn keys(&self) -> Keys {
-        Keys(self.mst.keys())
+    pub fn keys(&self) -> impl Iterator<Item = &[u8]> {
+        self.mst.keys().map(|v| &v[..])
     }
 
-    pub fn key_and_cids(&self) -> KeyAndCids {
-        KeyAndCids(self.mst.iter())
+    pub fn key_and_cids(&self) -> impl Iterator<Item = (&[u8], &cid::Cid)> {
+        self.mst.iter().map(|(k, c)| (&k[..], c))
     }
 
-    pub fn cids(&self) -> Cids {
-        Cids(self.blocks.keys())
-    }
-}
-
-pub struct KeyAndCids<'a>(std::collections::hash_map::Iter<'a, Vec<u8>, cid::Cid>);
-
-impl<'a> Iterator for KeyAndCids<'a> {
-    type Item = (&'a [u8], &'a cid::Cid);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|(k, c)| (k.as_slice(), c))
-    }
-}
-
-pub struct Keys<'a>(std::collections::hash_map::Keys<'a, Vec<u8>, cid::Cid>);
-
-impl<'a> Iterator for Keys<'a> {
-    type Item = &'a [u8];
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|v| v.as_slice())
-    }
-}
-
-pub struct Cids<'a>(std::collections::hash_map::Keys<'a, cid::Cid, Vec<u8>>);
-
-impl<'a> Iterator for Cids<'a> {
-    type Item = &'a cid::Cid;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
+    pub fn cids(&self) -> impl Iterator<Item = &cid::Cid> {
+        self.blocks.keys()
     }
 }
 

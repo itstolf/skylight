@@ -1,11 +1,8 @@
 [workspace]
 members = [
     "atproto-repo",
-    "skylight-followsdb",
-    "skylight-followsdb-crawler",
-    "skylight-followsdb-crawlstatus",
-    "skylight-followsdb-ingester",
-    "skylight-plcdb",
-    "skylight-plcdb-ingester",
+    "skylight-followscrawler",
+    "skylight-followsingester",
+    "skylight-plcingester",
     "skylight-queryserver",
 ]

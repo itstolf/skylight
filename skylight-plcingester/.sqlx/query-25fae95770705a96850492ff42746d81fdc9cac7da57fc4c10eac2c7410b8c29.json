@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO plc.dids (did, also_known_as) VALUES ($1, $2) ON CONFLICT (did) DO UPDATE SET also_known_as = excluded.also_known_as",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "25fae95770705a96850492ff42746d81fdc9cac7da57fc4c10eac2c7410b8c29"
+}
