@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                                    SELECT\n                                        path, nodes_expanded\n                                    FROM\n                                        find_follows_path($1, $2, $3, $4, $5)\n                                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "path",
+        "type_info": "Int4Array"
+      },
+      {
+        "ordinal": 1,
+        "name": "nodes_expanded",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4Array",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "0f84be91ffab403f88987ab6709ed7832b3c14c7647391c8b6b6ba7432b945aa"
+}

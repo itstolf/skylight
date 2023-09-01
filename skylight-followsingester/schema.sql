@@ -30,8 +30,8 @@ CREATE INDEX edges_outgoing_idx ON follows.edges (actor_id, subject_id);
 CREATE INDEX edges_incoming_idx ON follows.edges (subject_id, actor_id);
 
 CREATE TYPE neighborhood_entry AS (
-    actor_id TEXT,
-    subject_ids TEXT []
+    actor_id INT,
+    subject_ids INT []
 );
 
 CREATE OR REPLACE FUNCTION neighborhood(
