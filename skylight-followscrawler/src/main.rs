@@ -101,7 +101,7 @@ async fn worker_main(
                                 std::time::Duration::from_secs(10 * 60),
                                 client
                                     .get(format!(
-                                        "{}/xrpc/com.atproto.sync.getCheckout?did={}",
+                                        "{}/xrpc/com.atproto.sync.getRepo?did={}",
                                         pds_host, did
                                     ))
                                     .send(),
