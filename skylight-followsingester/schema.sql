@@ -40,8 +40,8 @@ CREATE OR REPLACE FUNCTION neighborhood(
 ) RETURNS SETOF NEIGHBORHOOD_ENTRY AS $$
 mutuals_plan = plpy.prepare("""
     select i.subject_id id
-    from follows i
-    inner join follows o on i.actor_id = o.subject_id and i.subject_id = o.actor_id
+    from follows.edges i
+    inner join follows.edges o on i.actor_id = o.subject_id and i.subject_id = o.actor_id
     where i.actor_id = $1 and i.subject_id != all($2)
     group by id
 """, ["INT", "INT[]"])
@@ -49,8 +49,8 @@ my_mutuals = [m["id"] for m in plpy.execute(mutuals_plan, [id, ignore_ids])]
 
 intersecting_mutuals_plan = plpy.prepare("""
     select i.subject_id id
-    from follows i
-    inner join follows o on i.actor_id = o.subject_id and i.subject_id = o.actor_id
+    from follows.edges i
+    inner join follows.edges o on i.actor_id = o.subject_id and i.subject_id = o.actor_id
     where i.actor_id = $1 and i.subject_id = any($2)
 """, ["INT", "INT[]"])
 
@@ -81,9 +81,9 @@ import collections
 
 mutuals_plan = plpy.prepare("""
     SELECT i.subject_id AS id
-    FROM follows AS i
+    FROM follows.edges AS i
     INNER JOIN
-        follows AS o
+        follows.edges AS o
         ON
             i.actor_id = o.subject_id
             AND i.subject_id = o.actor_id
