@@ -6,7 +6,7 @@ use sqlx::Connection;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(long, default_value = "postgres:///skygraph")]
+    #[arg(long, default_value = "postgres:///skylight")]
     dsn: String,
 
     #[arg(long, default_value = "https://plc.directory")]

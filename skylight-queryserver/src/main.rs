@@ -7,7 +7,7 @@ struct Args {
     #[arg(long, default_value = "[::]:1991")]
     listen: std::net::SocketAddr,
 
-    #[arg(long, default_value = "postgres:///skygraph")]
+    #[arg(long, default_value = "postgres:///skylight")]
     dsn: String,
 }
 
