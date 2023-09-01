@@ -29,15 +29,15 @@ CREATE TABLE follows.edges (
 CREATE INDEX edges_outgoing_idx ON follows.edges (actor_id, subject_id);
 CREATE INDEX edges_incoming_idx ON follows.edges (subject_id, actor_id);
 
-CREATE TYPE neighborhood_entry AS (
+CREATE TYPE follows.neighborhood_entry AS (
     actor_id INT,
     subject_ids INT []
 );
 
-CREATE OR REPLACE FUNCTION neighborhood(
+CREATE OR REPLACE FUNCTION follows.neighborhood(
     id INT,
     ignore_ids INT []
-) RETURNS SETOF NEIGHBORHOOD_ENTRY AS $$
+) RETURNS SETOF follows.neighborhood_entry AS $$
 mutuals_plan = plpy.prepare("""
     select i.subject_id id
     from follows.edges i
@@ -60,18 +60,18 @@ return (
 )
 $$ LANGUAGE plpython3u;
 
-CREATE TYPE find_follows_path_result AS (
+CREATE TYPE follows.find_follows_path_result AS (
     path INT [],
     nodes_expanded BIGINT
 );
 
-CREATE OR REPLACE FUNCTION find_follows_path(
+CREATE OR REPLACE FUNCTION follows.find_follows_path(
     source_id INT,
     target_id INT,
     ignore_ids INT [],
     max_depth INT,
     max_mutuals INT
-) RETURNS FIND_FOLLOWS_PATH_RESULT AS $$
+) RETURNS follows.find_follows_path_result AS $$
 nodes_expanded = 0
 
 if source_id == target_id:

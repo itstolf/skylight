@@ -92,6 +92,8 @@ async fn main() -> Result<(), anyhow::Error> {
     #[serde(rename_all = "camelCase")]
     struct NeighborhoodRequest {
         did: String,
+        #[serde(default)]
+        ignore_did: Vec<String>,
     }
     #[derive(serde::Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -107,6 +109,7 @@ async fn main() -> Result<(), anyhow::Error> {
     struct PathRequest {
         source_did: String,
         target_did: String,
+        #[serde(default)]
         ignore_did: Vec<String>,
         #[serde(default)]
         max_mutuals: usize,
@@ -138,7 +141,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         serde_qs::Config::default(),
                     ))
                     .and_then({
-                        let pool = &pool;
+                        let pool = pool.clone();
                         move |q: AkasRequest| {
                             let pool = pool.clone();
                             async move {
@@ -165,7 +168,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     .and(warp::path::end())
                     .and(warp::query::<WhoisRequest>())
                     .and_then({
-                        let pool = &pool;
+                        let pool = pool.clone();
                         move |q: WhoisRequest| {
                             let pool = pool.clone();
                             async move {
@@ -199,10 +202,21 @@ async fn main() -> Result<(), anyhow::Error> {
                     .and(warp::path::end())
                     .and(warp::query::<MutualsRequest>())
                     .and_then({
-                        let pool = &pool;
+                        let pool = pool.clone();
                         move |q: MutualsRequest| {
                             let pool = pool.clone();
                             async move {
+                                let id = if let Some(id) = get_ids_for_dids(&pool, &[q.did.clone()])
+                                    .await
+                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
+                                    .get(&q.did)
+                                    .cloned()
+                                {
+                                    id
+                                } else {
+                                    return Err(warp::reject::not_found());
+                                };
+
                                 // let tx = pool
                                 //     .read_txn()
                                 //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
@@ -223,37 +237,87 @@ async fn main() -> Result<(), anyhow::Error> {
                     .and(warp::path::end())
                     .and(warp::query::<NeighborhoodRequest>())
                     .and_then({
-                        let pool = &pool;
+                        let pool = pool.clone();
                         move |q: NeighborhoodRequest| {
                             let pool = pool.clone();
                             async move {
-                                // let tx = pool
-                                //     .read_txn()
-                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                // let followsdb_schema = skylight_followsdb::Schema::open(&pool, &tx)
-                                //     .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
-                                // let neighborhood =
-                                //     query::neighborhood(&followsdb_schema, &tx, &q.did).map_err(
-                                //         |e| warp::reject::custom(CustomReject(e.into())),
-                                //     )?;
-                                // let node_to_index = neighborhood
-                                //     .iter()
-                                //     .map(|(k, _)| k.clone())
-                                //     .enumerate()
-                                //     .map(|(k, v)| (v, k))
-                                //     .collect::<std::collections::HashMap<String, usize>>();
-                                // Ok::<_, warp::Rejection>(warp::reply::json(&NeighborhoodResponse {
-                                //     nodes: neighborhood.iter().map(|(k, _)| k.clone()).collect(),
-                                //     edges: neighborhood
-                                //         .iter()
-                                //         .map(|(_, v)| {
-                                //             v.iter()
-                                //                 .flat_map(|n| node_to_index.get(n).cloned())
-                                //                 .collect()
-                                //         })
-                                //         .collect(),
-                                // }))
-                                todo!()
+                                let input_dids = get_ids_for_dids(
+                                    &pool,
+                                    &[q.did.clone()]
+                                        .into_iter()
+                                        .chain(q.ignore_did.iter().cloned())
+                                        .collect::<Vec<_>>(),
+                                )
+                                .await
+                                .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+
+                                let id = if let Some(id) = input_dids.get(&q.did).cloned() {
+                                    id
+                                } else {
+                                    return Err(warp::reject::not_found());
+                                };
+
+                                let ignore_ids = q
+                                    .ignore_did
+                                    .into_iter()
+                                    .flat_map(|did| input_dids.get(&did).cloned())
+                                    .collect::<Vec<_>>();
+
+                                let rows = sqlx::query!(
+                                    r#"
+                                    SELECT actor_id as "actor_id!", subject_ids as "subject_ids!"
+                                    FROM follows.neighborhood($1, $2)
+                                    "#,
+                                    id,
+                                    &ignore_ids
+                                )
+                                .fetch_all(&pool)
+                                .await
+                                .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+
+                                let output_dids = get_dids_for_ids(
+                                    &pool,
+                                    &rows
+                                        .iter()
+                                        .flat_map(|row| {
+                                            [row.actor_id]
+                                                .into_iter()
+                                                .chain(row.subject_ids.iter().cloned())
+                                        })
+                                        .collect::<Vec<_>>(),
+                                )
+                                .await
+                                .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+
+                                let node_to_index = rows
+                                    .iter()
+                                    .map(|row| row.actor_id)
+                                    .enumerate()
+                                    .map(|(k, v)| (v, k))
+                                    .collect::<std::collections::HashMap<i32, usize>>();
+
+                                Ok::<_, warp::Rejection>(warp::reply::json(&NeighborhoodResponse {
+                                    nodes: rows
+                                        .iter()
+                                        .map(|row| {
+                                            output_dids.get(&row.actor_id).cloned().ok_or_else(
+                                                || anyhow::format_err!("unknown id: {}", id),
+                                            )
+                                        })
+                                        .collect::<Result<Vec<_>, _>>()
+                                        .map_err(|e| {
+                                            warp::reject::custom(CustomReject(e.into()))
+                                        })?,
+                                    edges: rows
+                                        .iter()
+                                        .map(|row| {
+                                            row.subject_ids
+                                                .iter()
+                                                .flat_map(|n| node_to_index.get(n).cloned())
+                                                .collect()
+                                        })
+                                        .collect(),
+                                }))
                             }
                         }
                     }))
@@ -261,43 +325,46 @@ async fn main() -> Result<(), anyhow::Error> {
                     .and(warp::path::end())
                     .and(warp::query::<PathRequest>())
                     .and_then({
-                        let pool = &pool;
+                        let pool = pool.clone();
                         move |q: PathRequest| {
                             let pool = pool.clone();
                             async move {
-                                let source_id = if let Some(id) =
-                                    get_ids_for_dids(&pool, &[q.source_did.clone()])
-                                        .await
-                                        .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
-                                        .get(&q.source_did)
-                                        .cloned()
-                                {
-                                    id
-                                } else {
-                                    return Err(warp::reject::not_found());
-                                };
-                                let target_id = if let Some(id) =
-                                    get_ids_for_dids(&pool, &[q.target_did.clone()])
-                                        .await
-                                        .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
-                                        .get(&q.target_did)
-                                        .cloned()
-                                {
-                                    id
-                                } else {
-                                    return Err(warp::reject::not_found());
-                                };
-                                let ignore_ids = get_ids_for_dids(&pool, &q.ignore_did)
-                                    .await
-                                    .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
-                                    .into_values()
+                                let input_dids = get_ids_for_dids(
+                                    &pool,
+                                    &[q.source_did.clone(), q.target_did.clone()]
+                                        .into_iter()
+                                        .chain(q.ignore_did.iter().cloned())
+                                        .collect::<Vec<_>>(),
+                                )
+                                .await
+                                .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
+
+                                let source_id =
+                                    if let Some(id) = input_dids.get(&q.source_did).cloned() {
+                                        id
+                                    } else {
+                                        return Err(warp::reject::not_found());
+                                    };
+
+                                let target_id =
+                                    if let Some(id) = input_dids.get(&q.target_did).cloned() {
+                                        id
+                                    } else {
+                                        return Err(warp::reject::not_found());
+                                    };
+
+                                let ignore_ids = q
+                                    .ignore_did
+                                    .into_iter()
+                                    .flat_map(|did| input_dids.get(&did).cloned())
                                     .collect::<Vec<_>>();
+
                                 let r = sqlx::query!(
                                     r#"
                                     SELECT
                                         path, nodes_expanded
                                     FROM
-                                        find_follows_path($1, $2, $3, $4, $5)
+                                        follows.find_follows_path($1, $2, $3, $4, $5)
                                     "#,
                                     source_id,
                                     target_id,
