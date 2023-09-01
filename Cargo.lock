@@ -1938,7 +1938,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "skylight-followsdb-crawler"
+name = "skylight-followscrawler"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1958,7 +1958,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "skylight-followsdb-ingester"
+name = "skylight-followsingester"
 version = "0.1.0"
 dependencies = [
  "anyhow",

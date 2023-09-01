@@ -1,5 +1,5 @@
 [package]
-name = "skylight-followsdb-crawler"
+name = "skylight-followscrawler"
 version = "0.1.0"
 edition = "2021"
 
