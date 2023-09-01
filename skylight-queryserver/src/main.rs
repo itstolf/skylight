@@ -178,8 +178,7 @@ async fn main() -> Result<(), anyhow::Error> {
                                     FROM plc.dids
                                     WHERE
                                         did = $1 OR
-                                        ARRAY[$1] && also_known_as OR
-                                        ARRAY['at://' || $1] && also_known_as
+                                        also_known_as  && ARRAY[$1, 'at://' || $1]
                                     "#,
                                     q.actor
                                 )
