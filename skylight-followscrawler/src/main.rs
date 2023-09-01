@@ -17,7 +17,7 @@ struct Args {
     #[arg(long, default_value_t = 8)]
     num_workers: usize,
 
-    #[arg(long)]
+    #[arg(long, default_value_t = false)]
     only_crawl_queued_repos: bool,
 }
 
