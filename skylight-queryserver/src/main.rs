@@ -11,6 +11,31 @@ struct Args {
     dsn: String,
 }
 
+#[derive(Debug)]
+struct QueryStringError(serde_querystring::Error);
+
+impl warp::reject::Reject for QueryStringError {}
+
+pub fn query<T>(
+    config: serde_querystring::ParseMode,
+) -> impl Filter<Extract = (T,), Error = warp::reject::Rejection> + Clone
+where
+    T: serde::de::DeserializeOwned + Send + 'static,
+{
+    warp::query::raw()
+        .or_else(|_| async {
+            tracing::debug!("route was called without a query string, defaulting to empty");
+
+            Ok::<_, warp::reject::Rejection>((String::new(),))
+        })
+        .and_then(move |query: String| async move {
+            serde_querystring::from_str(query.as_str(), config).map_err(|err| {
+                tracing::debug!("failed to decode query string '{}': {:?}", query, err);
+                warp::reject::Rejection::from(QueryStringError(err))
+            })
+        })
+}
+
 async fn get_ids_for_dids(
     executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
     dids: &[String],
@@ -84,8 +109,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
             g.or(warp::path("akas")
                 .and(warp::path::end())
-                .and(serde_qs::warp::query::<AkasRequest>(
-                    serde_qs::Config::default(),
+                .and(query::<AkasRequest>(
+                    serde_querystring::ParseMode::Duplicate,
                 ))
                 .and_then({
                     let pool = pool.clone();
@@ -129,7 +154,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
             g.or(warp::path("whois")
                 .and(warp::path::end())
-                .and(warp::query::<WhoisRequest>())
+                .and(query::<WhoisRequest>(
+                    serde_querystring::ParseMode::Duplicate,
+                ))
                 .and_then({
                     let pool = pool.clone();
                     move |q: WhoisRequest| {
@@ -177,7 +204,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
             g.or(warp::path("mutuals")
                 .and(warp::path::end())
-                .and(warp::query::<MutualsRequest>())
+                .and(query::<MutualsRequest>(
+                    serde_querystring::ParseMode::Duplicate,
+                ))
                 .and_then({
                     let pool = pool.clone();
                     move |q: MutualsRequest| {
@@ -253,7 +282,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
             g.or(warp::path("neighborhood")
                 .and(warp::path::end())
-                .and(warp::query::<NeighborhoodRequest>())
+                .and(query::<NeighborhoodRequest>(
+                    serde_querystring::ParseMode::Duplicate,
+                ))
                 .and_then({
                     let pool = pool.clone();
                     move |q: NeighborhoodRequest| {
@@ -359,7 +390,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
             g.or(warp::path("path")
                 .and(warp::path::end())
-                .and(warp::query::<PathRequest>())
+                .and(query::<PathRequest>(
+                    serde_querystring::ParseMode::Duplicate,
+                ))
                 .and_then({
                     let pool = pool.clone();
                     move |q: PathRequest| {
