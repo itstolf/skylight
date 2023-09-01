@@ -158,6 +158,7 @@ async fn worker_main(
                     }
 
                     let n = records.len();
+                    let mut subtx = tx.begin().await?;
                     for (rkey, record) in records {
                         let actor_id = did_id_assigner.assign(&did).await?;
                         let subject_id = did_id_assigner.assign(&record.subject).await?;
@@ -171,9 +172,10 @@ async fn worker_main(
                             rkey,
                             subject_id
                         )
-                        .execute(&mut **tx)
+                        .execute(&mut *subtx)
                         .await?;
                     }
+                    subtx.commit().await?;
                     tracing::info!(action = "repo", did = did, n = n);
                     Ok::<_, anyhow::Error>(())
                 })()
