@@ -198,11 +198,13 @@
 	<title>{me}'s neighborhood</title>
 </svelte:head>
 
-<Offcanvas isOpen={offcanvasOpen} toggle={toggleOffcanvas} class="text-bg-dark d-flex flex-column">
-	<svelte:fragment slot="header">
-		<a href="https://bsky.app/profile/{me}" target="_blank" class="text-bg-dark">{me}</a>'s
-		neighborhood
-	</svelte:fragment>
+<Offcanvas
+	isOpen={offcanvasOpen}
+	toggle={toggleOffcanvas}
+	placement="end"
+	class="text-bg-dark d-flex flex-column"
+	header="{mutuals.length} neighbors"
+>
 	<table class="text-bg-dark table table-sm table-borderless" style="width: 100%">
 		<thead>
 			<tr>
@@ -236,6 +238,10 @@
 </Offcanvas>
 
 <div id="map" class="vh-100 vw-100 position-absolute top-0 start-0" />
-<button class="position-absolute top-0 start-0 m-2 btn btn-primary" on:click={toggleOffcanvas}
+<h1 class="position-absolute top-0 start-0 m-2 h6">
+	<a href="https://bsky.app/profile/{me}" target="_blank">{me}</a>'s neighborhood
+</h1>
+
+<button class="position-absolute top-0 end-0 m-2 btn btn-primary btn-sm" on:click={toggleOffcanvas}
 	>show mutuals</button
 >
