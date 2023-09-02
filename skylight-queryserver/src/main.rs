@@ -164,12 +164,19 @@ async fn main() -> Result<(), anyhow::Error> {
                         async move {
                             let row = if let Some(row) = sqlx::query!(
                                 r#"
-                                    SELECT did, also_known_as
-                                    FROM plc.dids
-                                    WHERE
+                                SELECT did, also_known_as
+                                FROM plc.dids
+                                WHERE
+                                    (
                                         did = $1 OR
-                                        also_known_as  && ARRAY[$1, 'at://' || $1]
-                                    "#,
+                                        also_known_as && ARRAY[$1, 'at://' || $1]
+                                    ) AND
+                                    EXISTS (
+                                        SELECT *
+                                        FROM follows.dids
+                                        WHERE follows.dids.did = plc.dids.did
+                                    )
+                                "#,
                                 q.actor
                             )
                             .fetch_optional(&pool)

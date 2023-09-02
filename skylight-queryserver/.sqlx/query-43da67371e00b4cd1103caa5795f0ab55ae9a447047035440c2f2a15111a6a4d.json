@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                                SELECT did, also_known_as\n                                FROM plc.dids\n                                WHERE\n                                    (\n                                        did = $1 OR\n                                        also_known_as && ARRAY[$1, 'at://' || $1]\n                                    ) AND\n                                    EXISTS (\n                                        SELECT *\n                                        FROM follows.dids\n                                        WHERE follows.dids.did = plc.dids.did\n                                    )\n                                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "did",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "also_known_as",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "43da67371e00b4cd1103caa5795f0ab55ae9a447047035440c2f2a15111a6a4d"
+}
