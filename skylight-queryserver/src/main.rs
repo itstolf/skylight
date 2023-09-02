@@ -306,6 +306,26 @@ async fn main() -> Result<(), anyhow::Error> {
                                 return Err(warp::reject::not_found());
                             };
 
+                            let n = sqlx::query!(
+                                r#"
+                                SELECT COUNT(*) AS "count!"
+                                FROM follows.edges
+                                WHERE actor_id = $1
+                                "#,
+                                id,
+                            )
+                            .fetch_one(&pool)
+                            .await
+                            .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
+                            .count;
+
+                            const MAX_FOLLOWS: i64 = 3000;
+                            if n > MAX_FOLLOWS {
+                                return Err(warp::reject::custom(CustomReject(
+                                    anyhow::format_err!("too many follows"),
+                                )));
+                            }
+
                             let ignore_ids = q
                                 .ignore_did
                                 .into_iter()
@@ -314,9 +334,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
                             let rows = sqlx::query!(
                                 r#"
-                                    SELECT actor_id as "actor_id!", subject_ids as "subject_ids!"
-                                    FROM follows.neighborhood($1, $2)
-                                    "#,
+                                SELECT actor_id as "actor_id!", subject_ids as "subject_ids!"
+                                FROM follows.neighborhood($1, $2)
+                                "#,
                                 id,
                                 &ignore_ids
                             )
