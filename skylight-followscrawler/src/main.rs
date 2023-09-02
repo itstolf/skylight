@@ -86,14 +86,15 @@ async fn worker_main(
                 continue;
             };
 
-            if let Err(err) = {
-                let rl = &rl;
-                let pds_host = &pds_host;
-                let client = &client;
-                let did_id_assigner = &mut did_id_assigner;
-                let did = did.clone();
-                let tx = &mut tx;
-                (move || async move {
+            for attempt in 0..5 {
+                if let Err(err) = {
+                    let rl = &rl;
+                    let pds_host = &pds_host;
+                    let client = &client;
+                    let did_id_assigner = &mut did_id_assigner;
+                    let did = did.clone();
+                    let tx = &mut tx;
+                    (move || async move {
                     rl.until_ready().await;
                     let repo = tokio::time::timeout(
                         std::time::Duration::from_secs(30 * 60),
@@ -190,19 +191,28 @@ async fn worker_main(
                     Ok::<_, anyhow::Error>(())
                 })()
                 .await
-            } {
-                let why = format!("{:?}", err);
-                tracing::error!(did, why);
-                sqlx::query!(
-                    r#"
-                    INSERT INTO followscrawler.errors (did, why)
-                    VALUES ($1, $2)
-                    "#,
-                    did,
-                    why
-                )
-                .execute(&mut *tx)
-                .await?;
+                } {
+                    let why = format!("{:?}", err);
+                    tracing::error!(did, why, attempt);
+                    match err.downcast_ref::<atproto_repo::blockstore::Error>() {
+                        Some(atproto_repo::blockstore::Error::MissingRootCid(_)) => {
+                            // Try again.
+                            continue;
+                        }
+                        _ => {}
+                    }
+                    sqlx::query!(
+                        r#"
+                        INSERT INTO followscrawler.errors (did, why)
+                        VALUES ($1, $2)
+                        "#,
+                        did,
+                        why
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                }
+                break;
             }
             tx.commit().await?;
         }
