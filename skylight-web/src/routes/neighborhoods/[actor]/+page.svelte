@@ -238,10 +238,12 @@
 </Offcanvas>
 
 <div id="map" class="vh-100 vw-100 position-absolute top-0 start-0" />
-<h1 class="position-absolute top-0 start-0 m-2 h6">
-	<a href="https://bsky.app/profile/{me}" target="_blank">{me}</a>'s neighborhood
-</h1>
-
-<button class="position-absolute top-0 end-0 m-2 btn btn-primary btn-sm" on:click={toggleOffcanvas}
-	>show mutuals</button
+<div
+	class="position-absolute top-0 start-0 d-flex w-100 p-2 align-items-center user-select-none pe-none"
 >
+	<h1 class="h6 flex-grow-1 m-0">
+		<a href="https://bsky.app/profile/{me}" target="_blank" class="pe-auto">{me}</a>'s neighborhood
+	</h1>
+
+	<button class="btn btn-primary btn-sm pe-auto" on:click={toggleOffcanvas}>show mutuals</button>
+</div>
