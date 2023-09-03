@@ -120,10 +120,10 @@ async fn main() -> Result<(), anyhow::Error> {
                             Ok::<_, warp::Rejection>(warp::reply::json(&AkaResponse {
                                 akas: sqlx::query!(
                                     r#"
-                                        SELECT did, also_known_as
-                                        FROM plc.dids
-                                        WHERE did = ANY($1)
-                                        "#,
+                                    SELECT did, also_known_as
+                                    FROM plc.dids
+                                    WHERE did = ANY($1)
+                                    "#,
                                     &q.did
                                 )
                                 .fetch_all(&pool)
@@ -232,14 +232,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
                             let rows = sqlx::query!(
                                 r#"
-                                    SELECT i.subject_id
-                                    FROM follows.edges AS i
-                                    INNER JOIN
-                                        follows.edges AS o
-                                        ON i.actor_id = o.subject_id AND i.subject_id = o.actor_id
-                                    WHERE i.actor_id = $1
-                                    GROUP BY i.subject_id
-                                    "#,
+                                SELECT i.subject_id
+                                FROM follows.edges AS i
+                                INNER JOIN
+                                    follows.edges AS o
+                                    ON i.actor_id = o.subject_id AND i.subject_id = o.actor_id
+                                WHERE i.actor_id = $1
+                                GROUP BY i.subject_id
+                                "#,
                                 id
                             )
                             .fetch_all(&pool)
@@ -457,11 +457,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
                             let r = sqlx::query!(
                                 r#"
-                                    SELECT
-                                        path, nodes_expanded
-                                    FROM
-                                        follows.find_follows_path($1, $2, $3, $4, $5)
-                                    "#,
+                                SELECT
+                                    path, nodes_expanded
+                                FROM
+                                    follows.find_follows_path($1, $2, $3, $4, $5)
+                                "#,
                                 source_id,
                                 target_id,
                                 &ignore_ids,

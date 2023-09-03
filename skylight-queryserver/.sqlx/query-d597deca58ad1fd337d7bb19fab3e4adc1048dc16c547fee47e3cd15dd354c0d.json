@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                                        SELECT did, also_known_as\n                                        FROM plc.dids\n                                        WHERE did = ANY($1)\n                                        ",
+  "query": "\n                                    SELECT did, also_known_as\n                                    FROM plc.dids\n                                    WHERE did = ANY($1)\n                                    ",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "5600dd0fb9f7f7b6d8f716a73f4b9aa300e0e58776af7d202b593a469b626a8c"
+  "hash": "d597deca58ad1fd337d7bb19fab3e4adc1048dc16c547fee47e3cd15dd354c0d"
 }
