@@ -2053,6 +2053,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "sqlx",
+ "thiserror",
  "tokio",
  "tokio-tungstenite",
  "tracing",

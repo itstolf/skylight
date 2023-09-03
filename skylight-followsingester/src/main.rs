@@ -95,53 +95,18 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 }
 
-#[derive(Debug, serde::Deserialize)]
-struct FirehoseHeader {
-    #[serde(rename = "op")]
-    operation: i8,
-
-    #[serde(rename = "t")]
-    r#type: Option<String>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct FirehoseError {
-    error: String,
-    message: Option<String>,
-}
-
 async fn process_message(
     conn: &mut sqlx::postgres::PgConnection,
     did_id_assigner: &mut DidIdAssginer,
     message: &[u8],
 ) -> Result<(), anyhow::Error> {
-    let mut cursor = std::io::Cursor::new(message);
-    let frame: FirehoseHeader = ciborium::from_reader(&mut cursor)?;
-    if frame.operation == -1 {
-        let error: FirehoseError = ciborium::from_reader(&mut cursor)?;
-        return Err(anyhow::format_err!(
-            "{}: {}",
-            error.error,
-            error.message.unwrap_or_else(|| "".to_string())
-        ));
-    }
-
-    if frame.operation != 1 {
-        return Err(anyhow::format_err!(
-            "expected frame.op = 1, got {}",
-            frame.operation
-        ));
-    }
-
     let mut tx = conn.begin().await?;
-    let seq = match frame.r#type.unwrap_or_else(|| "".to_string()).as_str() {
-        "#info" => {
-            let info: firehose::Info = ciborium::from_reader(&mut cursor)?;
+    let seq = match firehose::Message::parse(message)? {
+        firehose::Message::Info(info) => {
             tracing::info!(name = info.name, message = info.message);
             return Ok(());
         }
-        "#commit" => {
-            let commit: firehose::Commit = ciborium::from_reader(&mut cursor)?;
+        firehose::Message::Commit(commit) => {
             for op in commit.ops {
                 let (collection, rkey) = match op.path.splitn(2, '/').collect::<Vec<_>>()[..] {
                     [collection, rkey] => (collection, rkey),
@@ -249,8 +214,7 @@ async fn process_message(
             }
             commit.seq
         }
-        "#tombstone" => {
-            let tombstone: firehose::Tombstone = ciborium::from_reader(&mut cursor)?;
+        firehose::Message::Tombstone(tombstone) => {
             sqlx::query!(
                 r#"
                 WITH ids AS (
@@ -269,14 +233,8 @@ async fn process_message(
             .await?;
             tombstone.seq
         }
-        "#handle" => {
-            let handle: firehose::Handle = ciborium::from_reader(&mut cursor)?;
-            handle.seq
-        }
-        "#migrate" => {
-            let migrate: firehose::Migrate = ciborium::from_reader(&mut cursor)?;
-            migrate.seq
-        }
+        firehose::Message::Handle(handle) => handle.seq,
+        firehose::Message::Migrate(migrate) => migrate.seq,
         _ => {
             return Ok(());
         }
