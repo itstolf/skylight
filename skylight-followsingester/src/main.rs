@@ -235,9 +235,6 @@ async fn process_message(
         }
         firehose::Message::Handle(handle) => handle.seq,
         firehose::Message::Migrate(migrate) => migrate.seq,
-        _ => {
-            return Ok(());
-        }
     };
     sqlx::query!(
         r#"
