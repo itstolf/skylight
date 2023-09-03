@@ -76,7 +76,7 @@
 		const communities = louvain(g);
 
 		g.forEachNode((node) => {
-			g.setNodeAttribute(node, 'size', g.degree(node) ** 0.5 * 5);
+			g.setNodeAttribute(node, 'size', g.degree(node) ** 0.25 * 5);
 			g.setNodeAttribute(node, 'color', palette[communities[node]]);
 		});
 
