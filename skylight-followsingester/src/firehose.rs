@@ -34,7 +34,6 @@ pub struct Info {
 #[serde(rename_all = "camelCase")]
 pub struct Migrate {
     pub did: String,
-
     pub migrate_to: Option<String>,
     pub seq: i64,
     pub time: String,
@@ -44,7 +43,6 @@ pub struct Migrate {
 #[serde(rename_all = "camelCase")]
 pub struct RepoOp {
     pub action: String,
-
     pub cid: Option<atproto_repo::dagcbor::DagCborCid>,
     pub path: String,
 }
