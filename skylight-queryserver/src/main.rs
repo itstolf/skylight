@@ -200,7 +200,7 @@ async fn main() -> Result<(), anyhow::Error> {
             #[derive(serde::Deserialize)]
             #[serde(rename_all = "camelCase")]
             struct MutualsRequest {
-                did: String,
+                did: Vec<String>,
             }
 
             #[derive(serde::Serialize)]
@@ -219,28 +219,19 @@ async fn main() -> Result<(), anyhow::Error> {
                     move |q: MutualsRequest| {
                         let pool = pool.clone();
                         async move {
-                            let id = if let Some(id) = get_ids_for_dids(&pool, &[q.did.clone()])
+                            let ids = get_ids_for_dids(&pool, &q.did)
                                 .await
                                 .map_err(|e| warp::reject::custom(CustomReject(e.into())))?
-                                .get(&q.did)
+                                .values()
                                 .cloned()
-                            {
-                                id
-                            } else {
-                                return Err(warp::reject::not_found());
-                            };
+                                .collect::<Vec<_>>();
 
                             let rows = sqlx::query!(
                                 r#"
-                                SELECT i.subject_id
-                                FROM follows.edges AS i
-                                INNER JOIN
-                                    follows.edges AS o
-                                    ON i.actor_id = o.subject_id AND i.subject_id = o.actor_id
-                                WHERE i.actor_id = $1
-                                GROUP BY i.subject_id
+                                SELECT id AS "id!"
+                                FROM follows.mutuals($1, ARRAY[]::INT[])
                                 "#,
-                                id
+                                &ids
                             )
                             .fetch_all(&pool)
                             .await
@@ -248,7 +239,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
                             let output_dids = get_dids_for_ids(
                                 &pool,
-                                &rows.iter().map(|row| row.subject_id).collect::<Vec<_>>(),
+                                &rows.iter().map(|row| row.id).collect::<Vec<_>>(),
                             )
                             .await
                             .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
@@ -257,8 +248,8 @@ async fn main() -> Result<(), anyhow::Error> {
                                 mutuals: rows
                                     .iter()
                                     .map(|row| {
-                                        output_dids.get(&row.subject_id).cloned().ok_or_else(|| {
-                                            anyhow::format_err!("unknown id: {}", id)
+                                        output_dids.get(&row.id).cloned().ok_or_else(|| {
+                                            anyhow::format_err!("unknown id: {}", row.id)
                                         })
                                     })
                                     .collect::<Result<Vec<_>, _>>()
