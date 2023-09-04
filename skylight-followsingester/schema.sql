@@ -54,10 +54,10 @@ mutuals_plan = plpy.prepare("""
         i.subject_id != all($2)
     GROUP BY id
 """, ["INT", "INT[]"])
-mutuals = functools.reduce(
+mutuals = list(functools.reduce(
     set.intersection,
     ({m["id"] for m in plpy.execute(mutuals_plan, [id, ignore_ids])} for id in ids)
-)
+))
 
 intersecting_mutuals_plan = plpy.prepare("""
     SELECT i.subject_id id
