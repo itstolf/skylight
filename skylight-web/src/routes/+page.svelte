@@ -28,7 +28,7 @@
 		</div>
 	</div>
 	<p>
-		source is available on <a href="https://github.com/itstolf/skygraph" target="_blank">github</a> but
+		source is available on <a href="https://github.com/itstolf/skylight" target="_blank">github</a> but
 		no guarantees it works!
 	</p>
 </div>
