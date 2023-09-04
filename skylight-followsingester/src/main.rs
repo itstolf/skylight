@@ -82,17 +82,26 @@ async fn main() -> Result<(), anyhow::Error> {
             }
 
             msg = tokio::time::timeout(std::time::Duration::from_secs(60), rx.next()) => {
-                let msg = if let Some(Ok(tokio_tungstenite::tungstenite::Message::Binary(msg))) = msg? {
+                let msg = if let Some(msg) = msg? {
+                    msg
+                } else {
+                    break;
+                };
+
+                let msg = if let tokio_tungstenite::tungstenite::Message::Binary(msg) = msg? {
                     msg
                 } else {
                     continue;
                 };
+
                 process_message(&mut conn, &mut did_id_assigner, &msg)
                     .instrument(tracing::info_span!("process_message"))
                     .await?;
             }
         }
     }
+
+    Ok(())
 }
 
 async fn process_message(
