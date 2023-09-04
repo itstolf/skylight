@@ -19,7 +19,7 @@ pub async fn neighborhood(
     axum::extract::State(state): axum::extract::State<std::sync::Arc<crate::AppState>>,
     crate::query::Query(req): crate::query::Query<Request>,
 ) -> Result<axum::response::Json<Response>, crate::error::Error> {
-    let input_dids = crate::ids::get_ids_for_dids(
+    let input_ids = crate::ids::get_ids_for_dids(
         &state.pool,
         &req.did
             .iter()
@@ -32,7 +32,7 @@ pub async fn neighborhood(
     let ids = req
         .did
         .iter()
-        .flat_map(|id| input_dids.get(id))
+        .flat_map(|id| input_ids.get(id))
         .cloned()
         .collect::<Vec<_>>();
 
@@ -56,7 +56,7 @@ pub async fn neighborhood(
     let ignore_ids = req
         .ignore_did
         .into_iter()
-        .flat_map(|did| input_dids.get(&did).cloned())
+        .flat_map(|did| input_ids.get(&did).cloned())
         .collect::<Vec<_>>();
 
     let rows = sqlx::query!(

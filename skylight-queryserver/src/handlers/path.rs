@@ -19,7 +19,7 @@ pub async fn path(
     axum::extract::State(state): axum::extract::State<std::sync::Arc<crate::AppState>>,
     crate::query::Query(req): crate::query::Query<Request>,
 ) -> Result<axum::response::Json<Response>, crate::error::Error> {
-    let input_dids = crate::ids::get_ids_for_dids(
+    let input_ids = crate::ids::get_ids_for_dids(
         &state.pool,
         &[req.source_did.clone(), req.target_did.clone()]
             .into_iter()
@@ -28,7 +28,7 @@ pub async fn path(
     )
     .await?;
 
-    let source_id = if let Some(id) = input_dids.get(&req.source_did).cloned() {
+    let source_id = if let Some(id) = input_ids.get(&req.source_did).cloned() {
         id
     } else {
         return Err(crate::error::Error::Status(
@@ -37,7 +37,7 @@ pub async fn path(
         ));
     };
 
-    let target_id = if let Some(id) = input_dids.get(&req.target_did).cloned() {
+    let target_id = if let Some(id) = input_ids.get(&req.target_did).cloned() {
         id
     } else {
         return Err(crate::error::Error::Status(
@@ -49,7 +49,7 @@ pub async fn path(
     let ignore_ids = req
         .ignore_did
         .into_iter()
-        .flat_map(|did| input_dids.get(&did).cloned())
+        .flat_map(|did| input_ids.get(&did).cloned())
         .collect::<Vec<_>>();
 
     let r = sqlx::query!(
