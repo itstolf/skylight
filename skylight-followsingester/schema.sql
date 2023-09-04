@@ -29,15 +29,10 @@ CREATE TABLE follows.edges (
 CREATE INDEX edges_outgoing_idx ON follows.edges (actor_id, subject_id);
 CREATE INDEX edges_incoming_idx ON follows.edges (subject_id, actor_id);
 
-CREATE TYPE follows.neighborhood_entry AS (
-    actor_id INT,
-    subject_ids INT []
-);
-
-CREATE OR REPLACE FUNCTION follows.neighborhood(
+CREATE OR REPLACE FUNCTION follows.mutuals(
     ids INT [],
     ignore_ids INT []
-) RETURNS SETOF follows.neighborhood_entry AS $$
+) RETURNS TABLE (id INT) AS $$
 if not ids:
     return []
 
@@ -54,10 +49,21 @@ mutuals_plan = plpy.prepare("""
         i.subject_id != all($2)
     GROUP BY id
 """, ["INT", "INT[]"])
-mutuals = list(functools.reduce(
+return list(functools.reduce(
     set.intersection,
     ({m["id"] for m in plpy.execute(mutuals_plan, [id, ignore_ids])} for id in ids)
 ))
+$$ LANGUAGE plpython3u;
+
+CREATE OR REPLACE FUNCTION follows.neighborhood(
+    ids INT [],
+    ignore_ids INT []
+) RETURNS TABLE (actor_id INT, subject_ids INT []) AS $$
+mutuals_plan = plpy.prepare("""
+    SELECT id
+    FROM follows.mutuals($1, $2)
+""", ["INT[]", "INT[]"])
+mutuals = [m["id"] for m in plpy.execute(mutuals_plan, [ids, ignore_ids])]
 
 intersecting_mutuals_plan = plpy.prepare("""
     SELECT i.subject_id id
