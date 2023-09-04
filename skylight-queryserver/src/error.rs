@@ -1,6 +1,6 @@
 pub enum Error {
     Status(axum::http::StatusCode, String),
-    BoxError(Box<dyn std::error::Error>),
+    BoxError(axum::BoxError),
 }
 
 impl axum::response::IntoResponse for Error {
@@ -18,7 +18,7 @@ impl axum::response::IntoResponse for Error {
 
 impl<E> From<E> for Error
 where
-    E: Into<Box<dyn std::error::Error>>,
+    E: Into<axum::BoxError>,
 {
     fn from(err: E) -> Self {
         Self::BoxError(err.into())
