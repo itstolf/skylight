@@ -273,7 +273,7 @@ async fn main() -> Result<(), anyhow::Error> {
             #[derive(serde::Deserialize)]
             #[serde(rename_all = "camelCase")]
             struct NeighborhoodRequest {
-                did: String,
+                did: Vec<String>,
                 #[serde(default)]
                 ignore_did: Vec<String>,
             }
@@ -299,27 +299,29 @@ async fn main() -> Result<(), anyhow::Error> {
                         async move {
                             let input_dids = get_ids_for_dids(
                                 &pool,
-                                &[q.did.clone()]
-                                    .into_iter()
+                                &q.did
+                                    .iter()
+                                    .cloned()
                                     .chain(q.ignore_did.iter().cloned())
                                     .collect::<Vec<_>>(),
                             )
                             .await
                             .map_err(|e| warp::reject::custom(CustomReject(e.into())))?;
 
-                            let id = if let Some(id) = input_dids.get(&q.did).cloned() {
-                                id
-                            } else {
-                                return Err(warp::reject::not_found());
-                            };
+                            let ids = q
+                                .did
+                                .iter()
+                                .flat_map(|id| input_dids.get(id))
+                                .cloned()
+                                .collect::<Vec<_>>();
 
                             let n = sqlx::query!(
                                 r#"
                                 SELECT COUNT(*) AS "count!"
                                 FROM follows.edges
-                                WHERE actor_id = $1
+                                WHERE actor_id = ANY($1)
                                 "#,
-                                id,
+                                &ids,
                             )
                             .fetch_one(&pool)
                             .await
@@ -344,7 +346,7 @@ async fn main() -> Result<(), anyhow::Error> {
                                 SELECT actor_id as "actor_id!", subject_ids as "subject_ids!"
                                 FROM follows.neighborhood($1, $2)
                                 "#,
-                                id,
+                                &ids,
                                 &ignore_ids
                             )
                             .fetch_all(&pool)
@@ -377,7 +379,7 @@ async fn main() -> Result<(), anyhow::Error> {
                                     .iter()
                                     .map(|row| {
                                         output_dids.get(&row.actor_id).cloned().ok_or_else(|| {
-                                            anyhow::format_err!("unknown id: {}", id)
+                                            anyhow::format_err!("unknown id: {}", row.actor_id)
                                         })
                                     })
                                     .collect::<Result<Vec<_>, _>>()

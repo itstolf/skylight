@@ -16,7 +16,7 @@
     ],
     "parameters": {
       "Left": [
-        "Int4",
+        "Int4Array",
         "Int4Array"
       ]
     },

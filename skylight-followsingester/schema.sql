@@ -35,28 +35,44 @@ CREATE TYPE follows.neighborhood_entry AS (
 );
 
 CREATE OR REPLACE FUNCTION follows.neighborhood(
-    id INT,
+    ids INT [],
     ignore_ids INT []
 ) RETURNS SETOF follows.neighborhood_entry AS $$
+if not ids:
+    return []
+
+import functools
+
 mutuals_plan = plpy.prepare("""
-    select i.subject_id id
-    from follows.edges i
-    inner join follows.edges o on i.actor_id = o.subject_id and i.subject_id = o.actor_id
-    where i.actor_id = $1 and i.subject_id != all($2)
-    group by id
+    SELECT i.subject_id id
+    FROM follows.edges i
+    INNER JOIN follows.edges o ON
+        i.actor_id = o.subject_id AND
+        i.subject_id = o.actor_id
+    WHERE
+        i.actor_id = $1 AND
+        i.subject_id != all($2)
+    GROUP BY id
 """, ["INT", "INT[]"])
-my_mutuals = [m["id"] for m in plpy.execute(mutuals_plan, [id, ignore_ids])]
+mutuals = functools.reduce(
+    set.intersection,
+    ({m["id"] for m in plpy.execute(mutuals_plan, [id, ignore_ids])} for id in ids)
+)
 
 intersecting_mutuals_plan = plpy.prepare("""
-    select i.subject_id id
-    from follows.edges i
-    inner join follows.edges o on i.actor_id = o.subject_id and i.subject_id = o.actor_id
-    where i.actor_id = $1 and i.subject_id = any($2)
+    SELECT i.subject_id id
+    FROM follows.edges i
+    INNER JOIN follows.edges o ON
+        i.actor_id = o.subject_id AND
+        i.subject_id = o.actor_id
+    WHERE
+        i.actor_id = $1 AND
+        i.subject_id = any($2)
 """, ["INT", "INT[]"])
 
 return (
-    [a, [m["id"] for m in plpy.execute(intersecting_mutuals_plan, [a, my_mutuals])]]
-    for a in my_mutuals
+    [a, [m["id"] for m in plpy.execute(intersecting_mutuals_plan, [a, mutuals])]]
+    for a in mutuals
 )
 $$ LANGUAGE plpython3u;
 
