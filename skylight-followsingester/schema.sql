@@ -100,16 +100,19 @@ if source_id == target_id:
 
 import collections
 
-mutuals_plan = plpy.prepare("""
-    SELECT id
-    FROM follows.mutuals(ARRAY[$1], $2)
-""", ["INT", "INT[]"])
-
 source_q = collections.deque([(source_id, 0)])
 source_visited = {source_id: None}
 
 target_q = collections.deque([(target_id, 0)])
 target_visited = {target_id: None}
+
+mutuals_plan = plpy.prepare("""
+    SELECT id
+    FROM follows.mutuals(ARRAY[$1], $2)
+""", ["INT", "INT[]"])
+
+def get_neighbors(node, ignore_ids):
+    return (row['id'] for row in plpy.execute(mutuals_plan, [id, ignore_ids]))
 
 def build_path(node, source_parents, target_parents):
     path = []
@@ -136,11 +139,7 @@ while source_q and target_q:
     if depth + 1 + other_depth >= max_depth:
         return [None, nodes_expanded]
 
-    rows = plpy.execute(mutuals_plan, [id, ignore_ids])
-
-    for row in rows:
-        neighbor = row['id']
-
+    for neighbor in get_neighbors(id, ignore_ids):
         if neighbor in visited:
             continue
         visited[neighbor] = id
@@ -148,13 +147,11 @@ while source_q and target_q:
 
         q.append((neighbor, depth + 1))
 
-        if neighbor not in other_visited:
-            continue
-
-        if len(source_q) <= len(target_q):
-            return [build_path(neighbor, source_visited, target_visited), nodes_expanded]
-        else:
-            return [build_path(neighbor, target_visited, source_visited)[::-1], nodes_expanded]
+        if neighbor in other_visited:
+            if len(source_q) <= len(target_q):
+                return [build_path(neighbor, source_visited, target_visited), nodes_expanded]
+            else:
+                return [build_path(neighbor, target_visited, source_visited)[::-1], nodes_expanded]
 
 return [[], nodes_expanded]
 $$ LANGUAGE plpython3u;
