@@ -53,7 +53,7 @@ return list(functools.reduce(
     set.intersection,
     ({m["id"] for m in plpy.execute(mutuals_plan, [id, ignore_ids])} for id in ids)
 ))
-$$ LANGUAGE plpython3u;
+$$ LANGUAGE plpython3u STABLE;
 
 CREATE OR REPLACE FUNCTION follows.neighborhood(
     ids INT [],
@@ -80,7 +80,7 @@ return (
     [a, [m["id"] for m in plpy.execute(intersecting_mutuals_plan, [a, mutuals])]]
     for a in mutuals
 )
-$$ LANGUAGE plpython3u;
+$$ LANGUAGE plpython3u STABLE;
 
 CREATE TYPE follows.find_follows_path_result AS (
     path INT [],
@@ -154,4 +154,4 @@ while source_q and target_q:
                 return [build_path(neighbor, target_visited, source_visited)[::-1], nodes_expanded]
 
 return [[], nodes_expanded]
-$$ LANGUAGE plpython3u;
+$$ LANGUAGE plpython3u STABLE;
