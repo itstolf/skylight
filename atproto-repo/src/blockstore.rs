@@ -57,25 +57,51 @@ pub enum Error {
     MissingRootCid(cid::Cid),
 }
 
-pub async fn load(
-    r: &mut (impl futures_util::AsyncRead + Send + std::marker::Unpin),
-    ignore_missing: bool,
-) -> Result<Blockstore, Error> {
-    let mut cr = rs_car::CarReader::new(r, false).await?;
+pub struct Loader {
+    validate_block_hash: bool,
+    mst_ignore_missing: bool,
+}
 
-    let roots = cr.header.roots.clone();
-    let mut blocks = std::collections::HashMap::new();
-    while let Some(item) = cr.next().await {
-        let (cid, block) = item?;
-        blocks.insert(cid.clone(), block);
+impl Loader {
+    pub fn new() -> Self {
+        Self {
+            validate_block_hash: false,
+            mst_ignore_missing: false,
+        }
     }
 
-    let root_commit = roots.first().ok_or_else(|| Error::NoRoots)?;
-    let commit: SignedCommit = ciborium::from_reader(std::io::Cursor::new(
-        blocks
-            .get(root_commit)
-            .ok_or_else(|| Error::MissingRootCid(*root_commit))?,
-    ))?;
-    let mst = crate::mst::decode(&blocks, &commit.data.into(), ignore_missing)?;
-    Ok(Blockstore { mst, blocks })
+    pub fn mst_ignore_missing(&mut self, mst_ignore_missing: bool) -> &mut Self {
+        self.mst_ignore_missing = mst_ignore_missing;
+        self
+    }
+
+    pub fn validate_block_hash(&mut self, validate_block_hash: bool) -> &mut Self {
+        self.validate_block_hash = validate_block_hash;
+        self
+    }
+
+    pub async fn load(
+        &self,
+        r: &mut (impl futures_util::AsyncRead + Send + std::marker::Unpin),
+    ) -> Result<Blockstore, Error> {
+        let mut cr = rs_car::CarReader::new(r, self.validate_block_hash).await?;
+
+        let roots = cr.header.roots.clone();
+        let mut blocks = std::collections::HashMap::new();
+        while let Some(item) = cr.next().await {
+            let (cid, block) = item?;
+            blocks.insert(cid.clone(), block);
+        }
+
+        let root_commit = roots.first().ok_or_else(|| Error::NoRoots)?;
+        let commit: SignedCommit = ciborium::from_reader(std::io::Cursor::new(
+            blocks
+                .get(root_commit)
+                .ok_or_else(|| Error::MissingRootCid(*root_commit))?,
+        ))?;
+        let mst = crate::mst::Decoder::new()
+            .ignore_missing(self.mst_ignore_missing)
+            .decode(&blocks, &commit.data.into())?;
+        Ok(Blockstore { mst, blocks })
+    }
 }

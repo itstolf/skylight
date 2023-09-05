@@ -31,39 +31,56 @@ pub enum Error {
     MissingCid(cid::Cid),
 }
 
-pub fn decode(
-    blocks: &std::collections::HashMap<cid::Cid, Vec<u8>>,
-    cid: &cid::Cid,
+pub struct Decoder {
     ignore_missing: bool,
-) -> Result<std::collections::HashMap<Vec<u8>, cid::Cid>, Error> {
-    let mut mst = std::collections::HashMap::new();
+}
 
-    let block = if let Some(block) = blocks.get(cid) {
-        block
-    } else {
-        if ignore_missing {
-            return Ok(mst);
-        }
-        return Err(Error::MissingCid(cid.clone()));
-    };
-
-    let node: Node = ciborium::from_reader(std::io::Cursor::new(block))?;
-    if let Some(left) = &node.left {
-        mst.extend(decode(blocks, left.into(), ignore_missing)?);
-    }
-
-    let mut key = vec![];
-    for entry in node.entries.iter() {
-        key = key[..entry.prefix_len as usize]
-            .iter()
-            .cloned()
-            .chain(entry.key_suffix.iter().cloned())
-            .collect::<Vec<u8>>();
-        mst.insert(key.clone(), entry.value.clone().into());
-        if let Some(right) = &entry.right {
-            mst.extend(decode(blocks, right.into(), ignore_missing)?);
+impl Decoder {
+    pub fn new() -> Self {
+        Self {
+            ignore_missing: false,
         }
     }
 
-    Ok(mst)
+    pub fn ignore_missing(&mut self, ignore_missing: bool) -> &mut Self {
+        self.ignore_missing = ignore_missing;
+        self
+    }
+
+    pub fn decode(
+        &self,
+        blocks: &std::collections::HashMap<cid::Cid, Vec<u8>>,
+        cid: &cid::Cid,
+    ) -> Result<std::collections::HashMap<Vec<u8>, cid::Cid>, Error> {
+        let mut mst = std::collections::HashMap::new();
+
+        let block = if let Some(block) = blocks.get(cid) {
+            block
+        } else {
+            if self.ignore_missing {
+                return Ok(mst);
+            }
+            return Err(Error::MissingCid(cid.clone()));
+        };
+
+        let node: Node = ciborium::from_reader(std::io::Cursor::new(block))?;
+        if let Some(left) = &node.left {
+            mst.extend(self.decode(blocks, left.into())?);
+        }
+
+        let mut key = vec![];
+        for entry in node.entries.iter() {
+            key = key[..entry.prefix_len as usize]
+                .iter()
+                .cloned()
+                .chain(entry.key_suffix.iter().cloned())
+                .collect::<Vec<u8>>();
+            mst.insert(key.clone(), entry.value.clone().into());
+            if let Some(right) = &entry.right {
+                mst.extend(self.decode(blocks, right.into())?);
+            }
+        }
+
+        Ok(mst)
+    }
 }

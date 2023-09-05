@@ -88,6 +88,9 @@ async fn worker_main(
 
             for attempt in 0..5 {
                 if let Err(err) = {
+                    let mut blockstore_loader = atproto_repo::blockstore::Loader::new();
+                    blockstore_loader.mst_ignore_missing(true);
+
                     let rl = &rl;
                     let pds_host = &pds_host;
                     let client = &client;
@@ -98,7 +101,7 @@ async fn worker_main(
                     rl.until_ready().await;
                     let repo = tokio::time::timeout(
                         std::time::Duration::from_secs(30 * 60),
-                        atproto_repo::load(
+                        blockstore_loader.load(
                             &mut tokio::time::timeout(
                                 std::time::Duration::from_secs(10 * 60),
                                 client
@@ -113,7 +116,6 @@ async fn worker_main(
                             .bytes_stream()
                             .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
                             .into_async_read(),
-                            true,
                         ),
                     )
                     .await??;
