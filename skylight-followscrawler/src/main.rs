@@ -98,101 +98,101 @@ async fn worker_main(
                     let did = did.clone();
                     let tx = &mut tx;
                     (move || async move {
-                    rl.until_ready().await;
-                    let repo = tokio::time::timeout(
-                        std::time::Duration::from_secs(30 * 60),
-                        blockstore_loader.load(
-                            &mut tokio::time::timeout(
-                                std::time::Duration::from_secs(10 * 60),
-                                client
-                                    .get(format!(
-                                        "{}/xrpc/com.atproto.sync.getRepo?did={}",
-                                        pds_host, did
-                                    ))
-                                    .send(),
-                            )
-                            .await??
-                            .error_for_status()?
-                            .bytes_stream()
-                            .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                            .into_async_read(),
-                        ),
-                    )
-                    .await??;
+                        rl.until_ready().await;
+                        let repo = tokio::time::timeout(
+                            std::time::Duration::from_secs(30 * 60),
+                            blockstore_loader.load(
+                                &mut tokio::time::timeout(
+                                    std::time::Duration::from_secs(10 * 60),
+                                    client
+                                        .get(format!(
+                                            "{}/xrpc/com.atproto.sync.getRepo?did={}",
+                                            pds_host, did
+                                        ))
+                                        .send(),
+                                )
+                                .await??
+                                .error_for_status()?
+                                .bytes_stream()
+                                .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                                .into_async_read(),
+                            ),
+                        )
+                        .await??;
 
-                    let mut records = vec![];
-                    for (key, cid) in repo.key_and_cids() {
-                        let key = String::from_utf8_lossy(key);
-                        let (collection, rkey) = match key.splitn(2, '/').collect::<Vec<_>>()[..] {
-                            [collection, rkey] => (collection, rkey),
-                            _ => {
-                                continue;
-                            }
-                        };
-
-                        if collection != "app.bsky.graph.follow" {
-                            continue;
-                        }
-
-                        let block = if let Some(block) = repo.get_by_cid(cid) {
-                            block
-                        } else {
-                            continue;
-                        };
-
-                        #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
-                        #[serde(rename_all = "camelCase")]
-                        struct Record {
-                            created_at: String,
-                            subject: String,
-                        }
-
-                        let record: Record =
-                            match ciborium::from_reader(std::io::Cursor::new(block)) {
-                                Ok(record) => record,
-                                Err(e) => {
-                                    tracing::error!(
-                                        error = format!("ciborium::from_reader: {e:?}")
-                                    );
+                        let mut records = vec![];
+                        for (key, cid) in repo.key_and_cids() {
+                            let key = String::from_utf8_lossy(key);
+                            let (collection, rkey) = match key.splitn(2, '/').collect::<Vec<_>>()[..] {
+                                [collection, rkey] => (collection, rkey),
+                                _ => {
                                     continue;
                                 }
                             };
-                        records.push((rkey.to_string(), record));
-                    }
 
-                    let actor_id = did_id_assigner.assign(&did).await?;
+                            if collection != "app.bsky.graph.follow" {
+                                continue;
+                            }
 
-                    let n = records.len();
-                    let mut subtx = tx.begin().await?;
-                    sqlx::query!(
-                        r#"
-                        DELETE FROM follows.edges
-                        WHERE actor_id = $1
-                        "#,
-                        actor_id
-                    )
-                    .execute(&mut *subtx)
-                    .await?;
-                    for (rkey, record) in records {
-                        let subject_id = did_id_assigner.assign(&record.subject).await?;
+                            let block = if let Some(block) = repo.get_by_cid(cid) {
+                                block
+                            } else {
+                                continue;
+                            };
+
+                            #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+                            #[serde(rename_all = "camelCase")]
+                            struct Record {
+                                created_at: String,
+                                subject: String,
+                            }
+
+                            let record: Record =
+                                match ciborium::from_reader(std::io::Cursor::new(block)) {
+                                    Ok(record) => record,
+                                    Err(e) => {
+                                        tracing::error!(
+                                            error = format!("ciborium::from_reader: {e:?}")
+                                        );
+                                        continue;
+                                    }
+                                };
+                            records.push((rkey.to_string(), record));
+                        }
+
+                        let actor_id = did_id_assigner.assign(&did).await?;
+
+                        let n = records.len();
+                        let mut subtx = tx.begin().await?;
                         sqlx::query!(
                             r#"
-                            INSERT INTO follows.edges (actor_id, rkey, subject_id)
-                            VALUES ($1, $2, $3)
-                            ON CONFLICT DO NOTHING
+                            DELETE FROM follows.edges
+                            WHERE actor_id = $1
                             "#,
-                            actor_id,
-                            rkey,
-                            subject_id
+                            actor_id
                         )
                         .execute(&mut *subtx)
                         .await?;
-                    }
-                    subtx.commit().await?;
-                    tracing::info!(action = "repo", did = did, n = n);
-                    Ok::<_, anyhow::Error>(())
-                })()
-                .await
+                        for (rkey, record) in records {
+                            let subject_id = did_id_assigner.assign(&record.subject).await?;
+                            sqlx::query!(
+                                r#"
+                                INSERT INTO follows.edges (actor_id, rkey, subject_id)
+                                VALUES ($1, $2, $3)
+                                ON CONFLICT DO NOTHING
+                                "#,
+                                actor_id,
+                                rkey,
+                                subject_id
+                            )
+                            .execute(&mut *subtx)
+                            .await?;
+                        }
+                        subtx.commit().await?;
+                        tracing::info!(action = "repo", did = did, n = n);
+                        Ok::<_, anyhow::Error>(())
+                    })()
+                    .await
                 } {
                     let why = format!("{:?}", err);
                     tracing::error!(did, why, attempt);
