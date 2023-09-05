@@ -5,8 +5,6 @@ pub struct Request {
     target_did: String,
     #[serde(default)]
     ignore_did: Vec<String>,
-    #[serde(default)]
-    max_mutuals: usize,
 }
 
 #[derive(serde::Serialize)]
@@ -57,13 +55,12 @@ pub async fn path(
         SELECT
             path, nodes_expanded
         FROM
-            follows.find_follows_path($1, $2, $3, $4, $5)
+            follows.find_follows_path($1, $2, $3, $4)
         "#,
         source_id,
         target_id,
         &ignore_ids,
         10,
-        req.max_mutuals as i32
     )
     .fetch_one(&state.pool)
     .await?;

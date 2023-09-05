@@ -66,7 +66,6 @@ export async function path(
 	sourceDid: string,
 	targetDid: string,
 	ignoreDids: string[] = [],
-	maxMutuals: number | null = null,
 	init?: RequestInit
 ): Promise<string[]> {
 	return (
@@ -75,8 +74,7 @@ export async function path(
 			{
 				sourceDid: sourceDid,
 				targetDid: targetDid,
-				ignoreDid: ignoreDids,
-				maxMutuals: maxMutuals != null ? maxMutuals.toString() : null
+				ignoreDid: ignoreDids
 			},
 			init
 		)

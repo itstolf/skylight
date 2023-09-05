@@ -91,8 +91,7 @@ CREATE OR REPLACE FUNCTION follows.find_follows_path(
     source_id INT,
     target_id INT,
     ignore_ids INT [],
-    max_depth INT,
-    max_mutuals INT
+    max_depth INT
 ) RETURNS follows.find_follows_path_result AS $$
 nodes_expanded = 0
 
@@ -102,17 +101,9 @@ if source_id == target_id:
 import collections
 
 mutuals_plan = plpy.prepare("""
-    SELECT i.subject_id AS id
-    FROM follows.edges AS i
-    INNER JOIN
-        follows.edges AS o
-        ON
-            i.actor_id = o.subject_id
-            AND i.subject_id = o.actor_id
-            AND i.subject_id != all($2)
-    WHERE i.actor_id = $1
-    LIMIT $3
-""", ["INT", "INT[]", "INT"])
+    SELECT id
+    FROM follows.mutuals(ARRAY[$1], $2)
+""", ["INT", "INT[]"])
 
 source_q = collections.deque([(source_id, 0)])
 source_visited = {source_id: None}
@@ -145,9 +136,7 @@ while source_q and target_q:
     if depth + 1 + other_depth >= max_depth:
         return [None, nodes_expanded]
 
-    rows = plpy.execute(mutuals_plan, [id, ignore_ids, max_mutuals + 1 if max_mutuals > 0 else None])
-    if max_mutuals > 0 and len(rows) > max_mutuals:
-        continue
+    rows = plpy.execute(mutuals_plan, [id, ignore_ids])
 
     for row in rows:
         neighbor = row['id']

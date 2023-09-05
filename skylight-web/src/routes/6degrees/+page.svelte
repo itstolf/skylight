@@ -6,7 +6,6 @@
 	let target: string;
 	let ignore: string;
 	let ignores: { did: string; alsoKnownAs: string[] }[] = [];
-	let maxMutuals: number;
 	let showMoreSettings: boolean = false;
 
 	function toggleMoreSettings() {
@@ -100,7 +99,6 @@
 				sourceDid,
 				targetDid,
 				ignores.map(({ did }) => did),
-				maxMutuals,
 				{ signal: controller.signal }
 			);
 		} catch (e) {
@@ -233,20 +231,6 @@
 							</div>
 						</li>
 					</ul>
-				</form>
-
-				<form on:submit|preventDefault={submit}>
-					<div class="row">
-						<div class="col-auto">
-							<input
-								class="form-control form-control-sm"
-								placeholder="max mutuals"
-								disabled={state != null && state.type == 'pending'}
-								inputmode="numeric"
-								bind:value={maxMutuals}
-							/>
-						</div>
-					</div>
 				</form>
 			</div>
 		</div>
