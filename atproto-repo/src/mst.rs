@@ -31,6 +31,7 @@ pub enum Error {
     MissingCid(cid::Cid),
 }
 
+#[derive(Clone)]
 pub struct Decoder {
     ignore_missing: bool,
 }

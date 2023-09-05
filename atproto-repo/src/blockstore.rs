@@ -57,6 +57,7 @@ pub enum Error {
     MissingRootCid(cid::Cid),
 }
 
+#[derive(Clone)]
 pub struct Loader {
     validate_block_hash: bool,
     mst_ignore_missing: bool,
