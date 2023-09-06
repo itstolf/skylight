@@ -23,19 +23,17 @@ where
     pub fn try_from_uri(value: &hyper::Uri) -> Result<Self, Rejection> {
         let query = value.query().unwrap_or_default();
         let params = serde_querystring::from_str(query, serde_querystring::ParseMode::Duplicate)
-            .map_err(|e| Rejection { error: e })?;
+            .map_err(|e| Rejection(e))?;
         Ok(Query(params))
     }
 }
 
 #[derive(Debug)]
-pub struct Rejection {
-    error: serde_querystring::Error,
-}
+pub struct Rejection(serde_querystring::Error);
 
 impl std::fmt::Display for Rejection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.error)
+        write!(f, "{}", self.0)
     }
 }
 
@@ -47,6 +45,6 @@ impl axum::response::IntoResponse for Rejection {
 
 impl std::error::Error for Rejection {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.error)
+        Some(&self.0)
     }
 }
