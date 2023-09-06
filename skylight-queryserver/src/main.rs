@@ -42,9 +42,9 @@ async fn main() -> Result<(), anyhow::Error> {
             .with_state(app_state),
     );
 
-    let listener = std::net::TcpListener::bind(&args.listen)?;
+    let listener = tokio::net::TcpListener::bind(&args.listen).await?;
     tracing::info!(listen = ?listener.local_addr()? );
-    axum::Server::from_tcp(listener)?
+    axum::Server::builder(hyper::server::conn::AddrIncoming::from_listener(listener)?)
         .serve(app.into_make_service())
         .await?;
     Ok(())
