@@ -93,18 +93,7 @@ CREATE OR REPLACE FUNCTION follows.find_follows_path(
     ignore_ids INT [],
     max_depth INT
 ) RETURNS follows.find_follows_path_result AS $$
-nodes_expanded = 0
-
-if source_id == target_id:
-    return [[source_id], nodes_expanded]
-
 import collections
-
-source_q = collections.deque([(source_id, 0)])
-source_visited = {source_id: None}
-
-target_q = collections.deque([(target_id, 0)])
-target_visited = {target_id: None}
 
 mutuals_plan = plpy.prepare("""
     SELECT id
@@ -114,44 +103,55 @@ mutuals_plan = plpy.prepare("""
 def get_neighbors(id):
     return (row['id'] for row in plpy.execute(mutuals_plan, [id, ignore_ids]))
 
-def build_path(node, source_parents, target_parents):
-    path = []
-    while node is not None:
-        path.append(node)
-        node = source_parents[node]
-    path.reverse()
 
-    node = target_parents[path[-1]]
-    while node is not None:
-        path.append(node)
-        node = target_parents[node]
-    return path
+def bibfs(source, target, get_neighbors, max_depth):
+    nodes_expanded = 0
 
-while source_q and target_q:
-    if len(source_q) <= len(target_q):
-        q, other_q, visited, other_visited = source_q, target_q, source_visited, target_visited
-    else:
-        q, other_q, visited, other_visited = target_q, source_q, target_visited, source_visited
+    if source == target:
+        return [source], nodes_expanded
 
-    id, depth = q.popleft()
+    source_q = collections.deque([(source, 0)])
+    source_visited = {source: None}
 
-    _, other_depth = other_q[0]
-    if depth + 1 + other_depth >= max_depth:
-        return [None, nodes_expanded]
+    target_q = collections.deque([(target, 0)])
+    target_visited = {target: None}
 
-    for neighbor in get_neighbors(id):
-        if neighbor in visited:
-            continue
-        visited[neighbor] = id
-        nodes_expanded += 1
+    while source_q and target_q:
+        if len(source_q) <= len(target_q):
+            q, visited, other_visited = source_q, source_visited, target_visited
+        else:
+            q, visited, other_visited = target_q, target_visited, source_visited
 
-        q.append((neighbor, depth + 1))
+        id, depth = q.popleft()
 
-        if neighbor in other_visited:
-            if len(source_q) <= len(target_q):
-                return [build_path(neighbor, source_visited, target_visited), nodes_expanded]
-            else:
-                return [build_path(neighbor, target_visited, source_visited)[::-1], nodes_expanded]
+        if depth >= max_depth:
+            return None, nodes_expanded
 
-return [[], nodes_expanded]
+        for neighbor in get_neighbors(id):
+            if neighbor in visited:
+                continue
+            visited[neighbor] = id
+            nodes_expanded += 1
+
+            q.append((neighbor, depth + 1))
+
+            if neighbor in other_visited:
+                node = neighbor
+
+                path = []
+                while node is not None:
+                    path.append(node)
+                    node = source_visited[node]
+                path.reverse()
+
+                node = target_visited[path[-1]]
+                while node is not None:
+                    path.append(node)
+                    node = target_visited[node]
+
+                return path, nodes_expanded
+
+    return [], nodes_expanded
+
+return bibfs(source_id, target_id, get_neighbors, max_depth)
 $$ LANGUAGE plpython3u STABLE;
