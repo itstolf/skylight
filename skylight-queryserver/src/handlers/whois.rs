@@ -37,9 +37,8 @@ pub async fn whois(
     {
         row
     } else {
-        return Err(crate::error::Error::Status(
+        return Err(crate::error::Error::status(
             axum::http::StatusCode::NOT_FOUND,
-            "not found".to_string(),
         ));
     };
     Ok(axum::response::Json(Response {

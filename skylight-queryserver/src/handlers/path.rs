@@ -29,18 +29,16 @@ pub async fn path(
     let source_id = if let Some(id) = input_ids.get(&req.source_did).cloned() {
         id
     } else {
-        return Err(crate::error::Error::Status(
+        return Err(crate::error::Error::status(
             axum::http::StatusCode::NOT_FOUND,
-            "not found".to_string(),
         ));
     };
 
     let target_id = if let Some(id) = input_ids.get(&req.target_did).cloned() {
         id
     } else {
-        return Err(crate::error::Error::Status(
+        return Err(crate::error::Error::status(
             axum::http::StatusCode::NOT_FOUND,
-            "not found".to_string(),
         ));
     };
 
