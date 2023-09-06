@@ -111,7 +111,7 @@ mutuals_plan = plpy.prepare("""
     FROM follows.mutuals(ARRAY[$1], $2)
 """, ["INT", "INT[]"])
 
-def get_neighbors(node, ignore_ids):
+def get_neighbors(id):
     return (row['id'] for row in plpy.execute(mutuals_plan, [id, ignore_ids]))
 
 def build_path(node, source_parents, target_parents):
@@ -139,7 +139,7 @@ while source_q and target_q:
     if depth + 1 + other_depth >= max_depth:
         return [None, nodes_expanded]
 
-    for neighbor in get_neighbors(id, ignore_ids):
+    for neighbor in get_neighbors(id):
         if neighbor in visited:
             continue
         visited[neighbor] = id
