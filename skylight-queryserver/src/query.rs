@@ -35,19 +35,13 @@ pub struct Rejection {
 
 impl std::fmt::Display for Rejection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Failed to deserialize query string. Error: {}",
-            self.error,
-        )
+        write!(f, "{}", self.error)
     }
 }
 
 impl axum::response::IntoResponse for Rejection {
     fn into_response(self) -> axum::response::Response {
-        let mut res = self.to_string().into_response();
-        *res.status_mut() = axum::http::StatusCode::BAD_REQUEST;
-        res
+        (axum::http::StatusCode::BAD_REQUEST, self.to_string()).into_response()
     }
 }
 
