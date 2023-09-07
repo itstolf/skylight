@@ -34,7 +34,7 @@ if not ids:
 import functools
 
 mutuals_plan = plpy.prepare("""
-    SELECT i.subject_id id
+    SELECT i.actor_id id
     FROM follows.edges i
     WHERE
         i.subject_id = $1 AND
