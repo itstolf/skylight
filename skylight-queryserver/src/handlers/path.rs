@@ -53,7 +53,7 @@ pub async fn path(
         SELECT
             path, nodes_expanded
         FROM
-            follows.find_follows_path($1, $2, $3, $4)
+            follows.path($1, $2, $3, $4)
         "#,
         source_id,
         target_id,

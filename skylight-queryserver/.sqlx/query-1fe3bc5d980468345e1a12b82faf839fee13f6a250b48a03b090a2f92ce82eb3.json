@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            path, nodes_expanded\n        FROM\n            follows.find_follows_path($1, $2, $3, $4)\n        ",
+  "query": "\n        SELECT\n            path, nodes_expanded\n        FROM\n            follows.path($1, $2, $3, $4)\n        ",
   "describe": {
     "columns": [
       {
@@ -27,5 +27,5 @@
       null
     ]
   },
-  "hash": "2120bfed479a0f77236a5fc3d0b6f62880f2bbb5f641b208ca41709ff172ac2f"
+  "hash": "1fe3bc5d980468345e1a12b82faf839fee13f6a250b48a03b090a2f92ce82eb3"
 }
