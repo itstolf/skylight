@@ -15,7 +15,7 @@ export const load: PageLoad = async ({ params }) => {
 		}
 		throw e;
 	}
-	const raw = await mutuals(did);
+	const raw = await mutuals([did]);
 	const resolved = await akas(raw);
 
 	return {

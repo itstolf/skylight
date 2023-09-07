@@ -1,4 +1,4 @@
-import { akas, mutuals2, whois } from '@/lib/client';
+import { akas, mutuals, whois } from '@/lib/client';
 import { error } from '@sveltejs/kit';
 
 import type { PageLoad } from './$types';
@@ -39,11 +39,11 @@ export const load: PageLoad = async ({ params }) => {
 		throw e;
 	}
 
-	const mutuals = await akas(await mutuals2(actor1.did, actor2.did));
+	const m = await akas(await mutuals([actor1.did, actor2.did]));
 
 	return {
 		actor1,
 		actor2,
-		mutuals
+		mutuals: m
 	};
 };

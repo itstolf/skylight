@@ -81,10 +81,6 @@ export async function path(
 	).path;
 }
 
-export async function mutuals(did: string, init?: RequestInit): Promise<string[]> {
-	return (await call<{ mutuals: string[] }>('mutuals', { did }, init)).mutuals;
-}
-
-export async function mutuals2(did1: string, did2: string, init?: RequestInit): Promise<string[]> {
-	return (await call<{ mutuals: string[] }>('mutuals2', { did1, did2 }, init)).mutuals;
+export async function mutuals(dids: string[], init?: RequestInit): Promise<string[]> {
+	return (await call<{ mutuals: string[] }>('mutuals', { did: dids }, init)).mutuals;
 }
