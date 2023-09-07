@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            path, nodes_expanded\n        FROM\n            follows.next_paths(1)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "path",
+        "type_info": "Int4Array"
+      },
+      {
+        "ordinal": 1,
+        "name": "nodes_expanded",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "5e4a0ad88601eb37ed6319864ad095a29a75d39a0f328f27d0cd75e9a14c1d36"
+}

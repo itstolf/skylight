@@ -74,18 +74,11 @@ return (
 )
 $$ LANGUAGE plpython3u STABLE;
 
-CREATE TYPE follows.path_result AS (
-    path INT [],
-    nodes_expanded BIGINT
-);
-
-CREATE OR REPLACE FUNCTION follows.path(
+CREATE OR REPLACE FUNCTION follows.set_paths_generator(
     source_id INT,
     target_id INT,
-    ignore_ids INT [],
-    max_depth INT
-) RETURNS follows . PATH_RESULT AS $$
-import collections
+    ignore_ids INT []
+) RETURNS VOID AS $$
 
 mutuals_plan = plpy.prepare("""
     SELECT id
@@ -95,55 +88,55 @@ mutuals_plan = plpy.prepare("""
 def get_neighbors(id):
     return (row['id'] for row in plpy.execute(mutuals_plan, [id, ignore_ids]))
 
+import collections
+import itertools
 
-def bibfs(source, target, get_neighbors, max_depth):
+def paths(source, target, get_neighbors):
     nodes_expanded = 0
 
     if source == target:
-        return [source], nodes_expanded
+        yield [(source, nodes_expanded)]
+        return
 
-    source_q = collections.deque([(source, 0)])
-    source_visited = {source: None}
+    source_q = collections.deque([(source, [source])])
+    source_visited = {source: [source]}
 
-    target_q = collections.deque([(target, 0)])
-    target_visited = {target: None}
+    target_q = collections.deque([(target, [target])])
+    target_visited = {target: [target]}
 
     while source_q and target_q:
         if len(source_q) <= len(target_q):
-            q, visited, other_visited = source_q, source_visited, target_visited
+            q, visited, other_visited, is_forward = source_q, source_visited, target_visited, True
         else:
-            q, visited, other_visited = target_q, target_visited, source_visited
+            q, visited, other_visited, is_forward = target_q, target_visited, source_visited, False
 
-        id, depth = q.popleft()
-
-        if depth >= max_depth:
-            return None, nodes_expanded
+        id, path = q.popleft()
 
         for neighbor in get_neighbors(id):
-            if neighbor in visited:
-                continue
-            visited[neighbor] = id
-            nodes_expanded += 1
-
-            q.append((neighbor, depth + 1))
-
+            new_path = [*path, neighbor]
             if neighbor in other_visited:
-                node = neighbor
+                final_path = [*new_path, *other_visited[neighbor][::-1]]
+                if not is_forward:
+                    final_path.reverse()
+                yield (final_path, nodes_expanded)
+            elif neighbor not in visited:
+                visited[neighbor] = new_path
+                q.append((neighbor, new_path))
+                nodes_expanded += 1
 
-                path = []
-                while node is not None:
-                    path.append(node)
-                    node = source_visited[node]
-                path.reverse()
+GD['skylight_paths_generator'] = paths(source_id, target_id, get_neighbors)
+$$ LANGUAGE plpython3u STABLE;
 
-                node = target_visited[path[-1]]
-                while node is not None:
-                    path.append(node)
-                    node = target_visited[node]
+CREATE OR REPLACE FUNCTION follows.clear_paths_generator()
+RETURNS VOID AS $$
+del GD['skylight_paths_generator']
+$$ LANGUAGE plpython3u STABLE;
 
-                return path, nodes_expanded
-
-    return [], nodes_expanded
-
-return bibfs(source_id, target_id, get_neighbors, max_depth)
+CREATE OR REPLACE FUNCTION follows.next_paths(
+    n INT
+) RETURNS TABLE (path INT [], nodes_expanded INT) AS $$
+if 'paths_generator' not in GD:
+    plpy.error('set_paths_generator was not called in this session')
+import itertools
+yield from itertools.islice(GD['skylight_paths_generator'], n)
 $$ LANGUAGE plpython3u STABLE;

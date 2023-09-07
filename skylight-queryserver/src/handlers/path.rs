@@ -48,17 +48,26 @@ pub async fn path(
         .flat_map(|did| input_ids.get(&did).cloned())
         .collect::<Vec<_>>();
 
+    let mut tx = state.pool.begin().await?;
+
+    sqlx::query!(
+        r#"
+        SELECT follows.set_paths_generator($1, $2, $3)
+        "#,
+        source_id,
+        target_id,
+        &ignore_ids,
+    )
+    .execute(&mut *tx)
+    .await?;
+
     let r = sqlx::query!(
         r#"
         SELECT
             path, nodes_expanded
         FROM
-            follows.path($1, $2, $3, $4)
+            follows.next_paths(1)
         "#,
-        source_id,
-        target_id,
-        &ignore_ids,
-        10,
     )
     .fetch_one(&state.pool)
     .await?;
