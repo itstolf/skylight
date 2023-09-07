@@ -41,7 +41,7 @@ fn paths_stream<'a>(
 
             let done = rows.len() < LIMIT as usize;
             for row in rows {
-                yield serde_json::to_string(&row.path)?;
+                yield serde_json::to_string(&row.path)? + "\n";
             }
             if done {
                 break;
