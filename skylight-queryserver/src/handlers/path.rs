@@ -69,7 +69,7 @@ pub async fn path(
             follows.next_paths(1)
         "#,
     )
-    .fetch_one(&state.pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     Ok(axum::response::Json(Response {
