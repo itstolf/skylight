@@ -164,7 +164,7 @@
 
 	let renderer: Sigma | null = null;
 	onMount(async () => {
-		neighbors = await neighborhood(data.did, IGNORE_DIDS);
+		neighbors = await neighborhood([data.did], IGNORE_DIDS);
 		renderer = await renderGraph(document.getElementById('map')!, neighbors!, data.resolved);
 	});
 	onDestroy(() => {

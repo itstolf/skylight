@@ -34,11 +34,11 @@ export async function whois(
 }
 
 export async function neighborhood(
-	did: string,
+	dids: string[],
 	ignoreDids: string[] = [],
 	init?: RequestInit
 ): Promise<{ n: string[]; e: number[][]; t: number }> {
-	return await call('neighborhood', { did, ignoreDid: ignoreDids }, init);
+	return await call('neighborhood', { did: dids, ignoreDid: ignoreDids }, init);
 }
 
 export async function akas(dids: string[], init?: RequestInit): Promise<Record<string, string[]>> {
