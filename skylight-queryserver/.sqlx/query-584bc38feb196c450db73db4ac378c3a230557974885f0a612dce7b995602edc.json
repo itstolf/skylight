@@ -1,16 +1,16 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            path, nodes_expanded\n        FROM\n            follows.next_paths(1)\n        ",
+  "query": "\n        SELECT\n            path AS \"path!\", nodes_expanded AS \"nodes_expanded!\"\n        FROM\n            follows.next_paths(1)\n        ",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "path",
+        "name": "path!",
         "type_info": "Int4Array"
       },
       {
         "ordinal": 1,
-        "name": "nodes_expanded",
+        "name": "nodes_expanded!",
         "type_info": "Int4"
       }
     ],
@@ -22,5 +22,5 @@
       null
     ]
   },
-  "hash": "5e4a0ad88601eb37ed6319864ad095a29a75d39a0f328f27d0cd75e9a14c1d36"
+  "hash": "584bc38feb196c450db73db4ac378c3a230557974885f0a612dce7b995602edc"
 }

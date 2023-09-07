@@ -64,19 +64,20 @@ pub async fn path(
     let r = sqlx::query!(
         r#"
         SELECT
-            path, nodes_expanded
+            path AS "path!", nodes_expanded AS "nodes_expanded!"
         FROM
             follows.next_paths(1)
         "#,
     )
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
 
     Ok(axum::response::Json(Response {
-        path: if let Some(path) = r.path {
-            let path_dids = crate::ids::get_dids_for_ids(&state.pool, &path).await?;
+        path: if let Some(r) = r {
+            let path_dids = crate::ids::get_dids_for_ids(&state.pool, &r.path).await?;
             Some(
-                path.into_iter()
+                r.path
+                    .into_iter()
                     .map(|id| {
                         path_dids
                             .get(&id)

@@ -115,7 +115,7 @@ def paths(source, target, get_neighbors):
         for neighbor in get_neighbors(id):
             new_path = [*path, neighbor]
             if neighbor in other_visited:
-                final_path = [*new_path, *other_visited[neighbor][::-1]]
+                final_path = [*path, *other_visited[neighbor][::-1]]
                 if not is_forward:
                     final_path.reverse()
                 yield (final_path, nodes_expanded)
@@ -135,7 +135,7 @@ $$ LANGUAGE plpython3u STABLE;
 CREATE OR REPLACE FUNCTION follows.next_paths(
     n INT
 ) RETURNS TABLE (path INT [], nodes_expanded INT) AS $$
-if 'paths_generator' not in GD:
+if 'skylight_paths_generator' not in GD:
     plpy.error('set_paths_generator was not called in this session')
 import itertools
 yield from itertools.islice(GD['skylight_paths_generator'], n)
