@@ -48,6 +48,9 @@ export async function neighborhood(
 }
 
 export async function akas(dids: string[], init?: RequestInit): Promise<Record<string, string[]>> {
+	if (dids.length == 0) {
+		return {};
+	}
 	const promises = [];
 	const CHUNK_SIZE = 100;
 	for (let i = 0; i < dids.length; i += CHUNK_SIZE) {

@@ -2,6 +2,8 @@
 	import { Collapse } from 'sveltestrap';
 	import { akas, paths, whois } from '@/lib/client';
 
+	const MAX_RESULTS = 100;
+
 	let source: string;
 	let target: string;
 	let ignore: string;
@@ -11,12 +13,6 @@
 	function toggleMoreSettings() {
 		showMoreSettings = !showMoreSettings;
 	}
-
-	let state:
-		| { type: 'pending' }
-		| { type: 'ready'; path: string[]; resolved: Record<string, string[]> }
-		| { type: 'error'; error: string }
-		| null = null;
 
 	function addIgnore(entry: { did: string; alsoKnownAs: string[] }) {
 		showMoreSettings = true;
@@ -45,9 +41,37 @@
 		ignore = '';
 	}
 
-	async function submit() {
-		state = { type: 'pending' };
+	let knownDids: Record<string, string[]> = {};
+	async function resolveDids(dids: string[]): Promise<string[][]> {
+		knownDids = {
+			...knownDids,
+			...(await akas(dids.filter((did) => !Object.prototype.hasOwnProperty.call(knownDids, did))))
+		};
+		return dids.map((did) => knownDids[did]);
+	}
 
+	let running = false;
+	let ps: { did: string; alsoKnownAs: string[] }[][] | null = null;
+
+	function cmpArray<T>(l: T[], r: T[]): -1 | 0 | 1 {
+		if (l.length < r.length) {
+			return -1;
+		}
+		if (l.length > r.length) {
+			return 1;
+		}
+		for (let i = 0; i < l.length; ++i) {
+			if (l[i] < r[i]) {
+				return -1;
+			}
+			if (l[i] > r[i]) {
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+	async function submit() {
 		if (source.indexOf('.') == -1 && !source.match(/^did:/)) {
 			source += '.bsky.social';
 		}
@@ -87,22 +111,33 @@
 						break;
 				}
 			}
-			state = { type: 'error', error: msg };
 			return;
 		}
 
-		let p: string[] = [];
+		ps = [];
 		const controller = new AbortController();
-		setTimeout(() => controller.abort(), 10 * 1000);
+		let i = 0;
 		try {
+			running = true;
 			for await (const path of paths(
 				sourceDid,
 				targetDid,
 				ignores.map(({ did }) => did),
 				{ signal: controller.signal }
 			)) {
-				p = path;
-				break;
+				const akas = await resolveDids(path);
+				ps.push(path.map((did, i) => ({ did, alsoKnownAs: akas[i] })));
+				ps.sort((l, r) =>
+					cmpArray(
+						l.map((v) => v.alsoKnownAs),
+						r.map((v) => v.alsoKnownAs)
+					)
+				);
+				ps = ps;
+				i++;
+				if (i >= MAX_RESULTS) {
+					break;
+				}
 			}
 		} catch (e) {
 			let msg = 'sorry, something broke :(';
@@ -118,19 +153,11 @@
 			} else if (e instanceof DOMException && e.name == 'AbortError') {
 				msg = 'sorry, took too long and gave up';
 			}
-			state = { type: 'error', error: msg };
 			return;
 		} finally {
+			running = false;
 			controller.abort();
 		}
-
-		if (p.length > 0) {
-			const resolved = await akas(p);
-			state = { type: 'ready', path: p, resolved };
-		} else {
-			state = { type: 'error', error: "sorry, couldn't find anything :(" };
-		}
-		return;
 	}
 </script>
 
@@ -147,31 +174,13 @@
 
 	<form class="mb-3 row" on:submit|preventDefault={submit}>
 		<div class="col-auto">
-			<input
-				type="text"
-				class="form-control"
-				placeholder="from"
-				bind:value={source}
-				required
-				disabled={state != null && state.type == 'pending'}
-			/>
+			<input type="text" class="form-control" placeholder="from" bind:value={source} required />
 		</div>
 		<div class="col-auto">
-			<input
-				type="text"
-				class="form-control"
-				placeholder="to"
-				bind:value={target}
-				required
-				disabled={state != null && state.type == 'pending'}
-			/>
+			<input type="text" class="form-control" placeholder="to" bind:value={target} required />
 		</div>
 		<div class="col-auto">
-			<button
-				class="btn btn-primary"
-				type="submit"
-				disabled={state != null && state.type == 'pending'}>find</button
-			>
+			<button class="btn btn-primary" type="submit" disabled={running}>find</button>
 		</div>
 		<div class="col-auto">
 			<button
@@ -203,7 +212,6 @@
 									type="button"
 									class="btn btn-sm btn-outline-secondary"
 									style="user-select: none"
-									disabled={state != null && state.type == 'pending'}
 									on:click={removeIgnore.bind(null, i)}>X</button
 								>
 								<a href="https://bsky.app/profile/{handle}" target="_blank">{handle}</a>
@@ -215,21 +223,19 @@
 									<input
 										class="form-control form-control-sm"
 										placeholder="ignore"
-										disabled={state != null && state.type == 'pending'}
 										bind:value={ignore}
 									/>
 								</div>
 								<div class="col-auto">
-									<button
-										class="btn btn-sm btn-primary"
-										type="submit"
-										disabled={state != null && state.type == 'pending'}>add</button
+									<button class="btn btn-sm btn-primary" type="submit" disabled={running}
+										>add</button
 									>
 								</div>
 								<div class="col-auto">
 									<button
 										class="btn btn-sm btn-danger"
 										type="button"
+										disabled={running}
 										on:click|preventDefault={clearIgnores}>clear</button
 									>
 								</div>
@@ -241,40 +247,23 @@
 		</div>
 	</Collapse>
 
-	{#if state != null}
-		{#if state.type == 'pending'}
-			<p>hold on...</p>
-		{/if}
-		{#if state.type == 'error'}
-			<div class="alert alert-danger">{state.error}</div>
-		{/if}
-		{#if state.type == 'ready'}
-			<ol id="path">
-				{#each state.path as did}
-					{@const handle = (() => {
-						let h = did;
-						const akas = state.resolved[did];
-						if (akas && akas.length > 0) {
-							h = akas[0].replace(/^at:\/\//, '');
-						}
-						return h;
-					})()}
-					<li>
-						<a href="https://bsky.app/profile/{handle}" target="_blank">{handle}</a>
-						<sup>
-							<button
-								class="btn btn-sm btn-outline-secondary py-0 px-1"
-								on:click|preventDefault={addIgnore.bind(null, {
-									did,
-									alsoKnownAs: state.resolved[did]
-								})}
-							>
-								<small>+exclude</small>
-							</button>
-						</sup>
-					</li>
-				{/each}
-			</ol>
-		{/if}
+	{#if ps != null}
+		<p>finding up to {MAX_RESULTS} paths ({ps.length} so far...)</p>
+		<table class="table">
+			{#each ps as path}
+				<tr>
+					{#each path as segment}
+						{@const handle = (() => {
+							let h = segment.did;
+							if (segment.alsoKnownAs && segment.alsoKnownAs.length > 0) {
+								h = segment.alsoKnownAs[0].replace(/^at:\/\//, '');
+							}
+							return h;
+						})()}
+						<td><a href="https://bsky.app/profile/{handle}" target="_blank">{handle}</a></td>
+					{/each}
+				</tr>
+			{/each}
+		</table>
 	{/if}
 </div>
