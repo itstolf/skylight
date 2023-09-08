@@ -91,21 +91,23 @@ export async function* paths(
 		)
 	);
 	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-	const reader = resp.body!.getReader();
+	const reader = resp.body!.getReader({ mode: 'byob' });
 	let buf = '';
 	while (true) {
-		const { value, done } = await reader.read();
+		const { value, done } = await reader.read(new Uint8Array(32));
 		if (done) {
 			break;
 		}
 		buf += TEXT_DECODER.decode(value);
 
-		let parts: string[];
-		[buf, ...parts] = buf.split('\n').reverse();
-		parts.reverse();
+		if (buf.indexOf('\n') == -1) {
+			continue;
+		}
+
+		const parts = buf.split('\n');
+		buf = parts.pop()!;
 
 		for (const part of parts) {
-			console.log(part);
 			yield JSON.parse(part);
 		}
 	}
