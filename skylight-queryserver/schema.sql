@@ -97,11 +97,11 @@ def paths(source, target, get_neighbors):
         yield ([source], nodes_expanded)
         return
 
-    source_q = collections.deque([(source, [source])])
-    source_visited = {source: [source]}
+    source_q = collections.deque([source])
+    source_visited = {source: None}
 
-    target_q = collections.deque([(target, [target])])
-    target_visited = {target: [target]}
+    target_q = collections.deque([target])
+    target_visited = {target: None}
 
     while source_q and target_q:
         if len(source_q) <= len(target_q):
@@ -109,20 +109,29 @@ def paths(source, target, get_neighbors):
         else:
             q, visited, other_visited, is_forward = target_q, target_visited, source_visited, False
 
-        node, path = q.popleft()
+        node = q.popleft()
         for neighbor in get_neighbors(node):
-            new_path = [*path, neighbor]
+            if neighbor in visited:
+                continue
+            visited[neighbor] = node
+            nodes_expanded += 1
+
+            q.append(neighbor)
 
             if neighbor in other_visited:
-                final_path = [*path, *other_visited[neighbor][::-1]]
-                if not is_forward:
-                    final_path.reverse()
-                yield (final_path, nodes_expanded)
-
-            if neighbor not in visited:
-                visited[neighbor] = new_path
-                q.append((neighbor, new_path))
-                nodes_expanded += 1
+                n = neighbor
+                path = []
+                while n is not None:
+                    path.append(n)
+                    n = source_visited[n]
+                path.reverse()
+                n = target_visited[path[-1]]
+                while n is not None:
+                    path.append(n)
+                    n = target_visited[n]
+                if source in path[1:-1] or target in path[1:-1]:
+                    continue
+                yield path, nodes_expanded
 
 GD['skylight_paths_generator'] = paths(source_id, target_id, get_neighbors)
 $$ LANGUAGE plpython3u STABLE;

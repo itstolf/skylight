@@ -157,6 +157,10 @@
 			controller.abort();
 		}
 	}
+
+	function swap() {
+		[source, target] = [target, source];
+	}
 </script>
 
 <svelte:head>
@@ -172,10 +176,32 @@
 
 	<form class="mb-3 row" on:submit|preventDefault={submit}>
 		<div class="col-auto">
-			<input type="text" class="form-control" placeholder="from" bind:value={source} required />
+			<input
+				type="text"
+				class="form-control"
+				disabled={state.type == 'running'}
+				placeholder="from"
+				bind:value={source}
+				required
+			/>
 		</div>
 		<div class="col-auto">
-			<input type="text" class="form-control" placeholder="to" bind:value={target} required />
+			<button
+				type="button"
+				class="btn btn-outline-secondary"
+				disabled={state.type == 'running'}
+				on:click|preventDefault={swap}>↔</button
+			>
+		</div>
+		<div class="col-auto">
+			<input
+				type="text"
+				class="form-control"
+				disabled={state.type == 'running'}
+				placeholder="to"
+				bind:value={target}
+				required
+			/>
 		</div>
 		<div class="col-auto">
 			<button class="btn btn-primary" type="submit" disabled={state.type == 'running'}>find</button>
