@@ -39,7 +39,6 @@ async fn main() -> Result<(), anyhow::Error> {
             .route("/mutuals", axum::routing::get(handlers::mutuals))
             .route("/incoming", axum::routing::get(handlers::incoming))
             .route("/neighborhood", axum::routing::get(handlers::neighborhood))
-            .route("/path", axum::routing::get(handlers::path))
             .route("/paths", axum::routing::get(handlers::paths))
             .with_state(app_state),
     );
