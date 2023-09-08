@@ -105,6 +105,7 @@ export async function* paths(
 		}
 
 		const parts = buf.split('\n');
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		buf = parts.pop()!;
 
 		for (const part of parts) {
