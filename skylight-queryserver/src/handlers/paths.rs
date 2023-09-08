@@ -7,12 +7,12 @@ pub struct Request {
     ignore_did: Vec<String>,
 }
 
-fn paths_stream<'a>(
+fn paths_stream(
     source_id: i32,
     target_id: i32,
     ignore_ids: Vec<i32>,
-    mut tx: sqlx::Transaction<'a, sqlx::Postgres>,
-) -> impl futures_util::stream::Stream<Item = Result<std::string::String, anyhow::Error>> + 'a {
+    mut tx: sqlx::Transaction<sqlx::Postgres>,
+) -> impl futures_util::stream::Stream<Item = Result<std::string::String, anyhow::Error>> + '_ {
     let mut path_dids = std::collections::HashMap::new();
 
     async_stream::try_stream! {
