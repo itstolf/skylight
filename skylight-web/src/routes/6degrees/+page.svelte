@@ -121,6 +121,7 @@
 		const controller = new AbortController();
 		let i = 0;
 		try {
+			const seen = new Set();
 			state = { type: 'running' };
 			for await (const path of paths(
 				sourceDid,
@@ -128,6 +129,12 @@
 				ignores.map(({ did }) => did),
 				{ signal: controller.signal }
 			)) {
+				const k = path.join(' ');
+				if (seen.has(k)) {
+					continue;
+				}
+				seen.add(k);
+
 				const akas = await resolveDids(path);
 				ps.push(path.map((did, i) => ({ did, alsoKnownAs: akas[i] })));
 				ps.sort((l, r) =>

@@ -89,13 +89,12 @@ def get_neighbors(id):
     return (row['id'] for row in plpy.execute(mutuals_plan, [id, ignore_ids]))
 
 import collections
-import itertools
 
 def paths(source, target, get_neighbors):
     nodes_expanded = 0
 
     if source == target:
-        yield [(source, nodes_expanded)]
+        yield ([source], nodes_expanded)
         return
 
     source_q = collections.deque([(source, [source])])
@@ -110,16 +109,17 @@ def paths(source, target, get_neighbors):
         else:
             q, visited, other_visited, is_forward = target_q, target_visited, source_visited, False
 
-        id, path = q.popleft()
-
-        for neighbor in get_neighbors(id):
+        node, path = q.popleft()
+        for neighbor in get_neighbors(node):
             new_path = [*path, neighbor]
+
             if neighbor in other_visited:
                 final_path = [*path, *other_visited[neighbor][::-1]]
                 if not is_forward:
                     final_path.reverse()
                 yield (final_path, nodes_expanded)
-            elif neighbor not in visited:
+
+            if neighbor not in visited:
                 visited[neighbor] = new_path
                 q.append((neighbor, new_path))
                 nodes_expanded += 1
