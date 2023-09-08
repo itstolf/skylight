@@ -88,14 +88,36 @@ mutuals_plan = plpy.prepare("""
 def get_neighbors(id):
     return (row['id'] for row in plpy.execute(mutuals_plan, [id, ignore_ids]))
 
+is_mutual_plan = plpy.prepare("""
+    SELECT EXISTS (
+        SELECT *
+        FROM follows.edges i
+        INNER JOIN follows.edges o ON
+            i.actor_id = o.subject_id AND
+            i.subject_id = o.actor_id
+        WHERE
+            i.actor_id = $1 AND
+            i.subject_id = $2
+    ) AS v
+""", ["INT", "INT"])
+
+def is_neighbor(source_id, target_id):
+    row, = plpy.execute(is_mutual_plan, [source_id, target_id])
+    return row["v"]
+
+
 import collections
 
 def paths(source, target, get_neighbors):
-    nodes_expanded = 0
-
     if source == target:
-        yield ([source], nodes_expanded)
+        yield ([source], 0)
         return
+
+    # Check for direct intersection.
+    if is_neighbor(source, target):
+        yield ([source, target], 0)
+
+    nodes_expanded = 0
 
     source_q = collections.deque([source])
     source_visited = {source: None}
@@ -105,13 +127,13 @@ def paths(source, target, get_neighbors):
 
     while source_q and target_q:
         if len(source_q) <= len(target_q):
-            q, visited, other_visited, is_forward = source_q, source_visited, target_visited, True
+            q, visited, other_visited, toward = source_q, source_visited, target_visited, target
         else:
-            q, visited, other_visited, is_forward = target_q, target_visited, source_visited, False
+            q, visited, other_visited, toward = target_q, target_visited, source_visited, source
 
         node = q.popleft()
         for neighbor in get_neighbors(node):
-            if neighbor in visited:
+            if neighbor in visited or neighbor == toward:
                 continue
             visited[neighbor] = node
             nodes_expanded += 1
@@ -129,8 +151,6 @@ def paths(source, target, get_neighbors):
                 while n is not None:
                     path.append(n)
                     n = target_visited[n]
-                if source in path[1:-1] or target in path[1:-1]:
-                    continue
                 yield path, nodes_expanded
 
 GD['skylight_paths_generator'] = paths(source_id, target_id, get_neighbors)
