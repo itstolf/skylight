@@ -50,7 +50,9 @@
 		return dids.map((did) => knownDids[did]);
 	}
 
-	let running = false;
+	let state: { type: 'idle' } | { type: 'running' } | { type: 'error'; why: string } = {
+		type: 'idle'
+	};
 	let ps: { did: string; alsoKnownAs: string[] }[][] | null = null;
 
 	function cmpArray<T>(l: T[], r: T[]): -1 | 0 | 1 {
@@ -111,6 +113,7 @@
 						break;
 				}
 			}
+			state = { type: 'error', why: msg };
 			return;
 		}
 
@@ -118,7 +121,7 @@
 		const controller = new AbortController();
 		let i = 0;
 		try {
-			running = true;
+			state = { type: 'running' };
 			for await (const path of paths(
 				sourceDid,
 				targetDid,
@@ -139,23 +142,11 @@
 					break;
 				}
 			}
+			state = { type: 'idle' };
 		} catch (e) {
-			let msg = 'sorry, something broke :(';
-			if (e instanceof Response) {
-				switch (e.status) {
-					case 404:
-						msg = 'sorry, you might be too far apart :(';
-						break;
-					case 408:
-						msg = 'sorry, took too long and gave up :(';
-						break;
-				}
-			} else if (e instanceof DOMException && e.name == 'AbortError') {
-				msg = 'sorry, took too long and gave up';
-			}
-			return;
+			state = { type: 'error', why: 'sorry, something broke :(' };
+			console.error(e);
 		} finally {
-			running = false;
 			controller.abort();
 		}
 	}
@@ -180,7 +171,7 @@
 			<input type="text" class="form-control" placeholder="to" bind:value={target} required />
 		</div>
 		<div class="col-auto">
-			<button class="btn btn-primary" type="submit" disabled={running}>find</button>
+			<button class="btn btn-primary" type="submit" disabled={state.type == 'running'}>find</button>
 		</div>
 		<div class="col-auto">
 			<button
@@ -227,15 +218,17 @@
 									/>
 								</div>
 								<div class="col-auto">
-									<button class="btn btn-sm btn-primary" type="submit" disabled={running}
-										>add</button
+									<button
+										class="btn btn-sm btn-primary"
+										type="submit"
+										disabled={state.type == 'running'}>add</button
 									>
 								</div>
 								<div class="col-auto">
 									<button
 										class="btn btn-sm btn-danger"
 										type="button"
-										disabled={running}
+										disabled={state.type == 'running'}
 										on:click|preventDefault={clearIgnores}>clear</button
 									>
 								</div>
@@ -247,8 +240,20 @@
 		</div>
 	</Collapse>
 
+	{#if state.type == 'error'}
+		<div class="alert alert-danger">{state.why}</div>
+	{/if}
 	{#if ps != null}
-		<p>finding up to {MAX_RESULTS} paths ({ps.length} so far...)</p>
+		{#if state.type == 'running'}
+			<p>
+				finding up to {MAX_RESULTS} paths ({ps.length} so far...)
+			</p>
+		{/if}
+		{#if state.type == 'idle'}
+			<p>
+				found {ps.length} paths (out of a limit of {MAX_RESULTS})
+			</p>
+		{/if}
 		<table class="table">
 			{#each ps as path}
 				<tr>
@@ -260,7 +265,9 @@
 							}
 							return h;
 						})()}
-						<td><a href="https://bsky.app/profile/{handle}" target="_blank">{handle}</a></td>
+						<td class="text-nowrap"
+							><a href="https://bsky.app/profile/{handle}" target="_blank">{handle}</a></td
+						>
 					{/each}
 				</tr>
 			{/each}
