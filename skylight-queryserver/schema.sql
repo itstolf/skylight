@@ -154,12 +154,12 @@ def paths(source, target, get_neighbors):
                 yield path, nodes_expanded
 
 GD['skylight_paths_generator'] = paths(source_id, target_id, get_neighbors)
-$$ LANGUAGE plpython3u STABLE;
+$$ LANGUAGE plpython3u;
 
 CREATE OR REPLACE FUNCTION follows.clear_paths_generator()
 RETURNS VOID AS $$
 del GD['skylight_paths_generator']
-$$ LANGUAGE plpython3u STABLE;
+$$ LANGUAGE plpython3u;
 
 CREATE OR REPLACE FUNCTION follows.next_paths(
     n INT
@@ -168,4 +168,4 @@ if 'skylight_paths_generator' not in GD:
     plpy.error('set_paths_generator was not called in this session')
 import itertools
 yield from itertools.islice(GD['skylight_paths_generator'], n)
-$$ LANGUAGE plpython3u STABLE;
+$$ LANGUAGE plpython3u;
