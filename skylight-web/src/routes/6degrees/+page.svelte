@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Collapse } from 'sveltestrap';
-	import { akas, path, whois } from '@/lib/client';
+	import { akas, paths, whois } from '@/lib/client';
 
 	let source: string;
 	let target: string;
@@ -91,16 +91,19 @@
 			return;
 		}
 
-		let p: string[];
+		let p: string[] = [];
 		const controller = new AbortController();
 		setTimeout(() => controller.abort(), 10 * 1000);
 		try {
-			p = await path(
+			for await (const path of paths(
 				sourceDid,
 				targetDid,
 				ignores.map(({ did }) => did),
 				{ signal: controller.signal }
-			);
+			)) {
+				p = path;
+				break;
+			}
 		} catch (e) {
 			let msg = 'sorry, something broke :(';
 			if (e instanceof Response) {
@@ -117,6 +120,8 @@
 			}
 			state = { type: 'error', error: msg };
 			return;
+		} finally {
+			controller.abort();
 		}
 
 		if (p.length > 0) {

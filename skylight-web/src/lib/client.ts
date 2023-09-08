@@ -2,11 +2,7 @@ import { throwForStatus } from './fetch';
 
 const HOST = 'https://bsky-stuff.tolf.gay';
 
-async function call<R>(
-	endpoint: string,
-	args: Record<string, string | string[] | null>,
-	init?: RequestInit
-): Promise<R> {
+function makeURLSearchParams(args: Record<string, string | string[] | null>): URLSearchParams {
 	const q = new URLSearchParams();
 	for (const k in args) {
 		if (!Object.prototype.hasOwnProperty.call(args, k)) {
@@ -23,7 +19,17 @@ async function call<R>(
 			q.append(k, v);
 		}
 	}
-	return await throwForStatus(await fetch(`${HOST}/_/${endpoint}?${q}`, init)).json();
+	return q;
+}
+
+async function call<R>(
+	endpoint: string,
+	args: Record<string, string | string[] | null>,
+	init?: RequestInit
+): Promise<R> {
+	return await throwForStatus(
+		await fetch(`${HOST}/_/${endpoint}?${makeURLSearchParams(args)}`, init)
+	).json();
 }
 
 export async function whois(
@@ -62,25 +68,45 @@ export async function akas(dids: string[], init?: RequestInit): Promise<Record<s
 	return r;
 }
 
-export async function path(
+export async function mutuals(dids: string[], init?: RequestInit): Promise<string[]> {
+	return (await call<{ mutuals: string[] }>('mutuals', { did: dids }, init)).mutuals;
+}
+
+const TEXT_DECODER = new TextDecoder();
+
+export async function* paths(
 	sourceDid: string,
 	targetDid: string,
 	ignoreDids: string[] = [],
 	init?: RequestInit
-): Promise<string[]> {
-	return (
-		await call<{ path: string[] }>(
-			'path',
-			{
+): AsyncIterable<string[]> {
+	const resp = throwForStatus(
+		await fetch(
+			`${HOST}/_/paths?${makeURLSearchParams({
 				sourceDid: sourceDid,
 				targetDid: targetDid,
 				ignoreDid: ignoreDids
-			},
+			})}`,
 			init
 		)
-	).path;
-}
+	);
+	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+	const reader = resp.body!.getReader();
+	let buf = '';
+	while (true) {
+		const { value, done } = await reader.read();
+		if (done) {
+			break;
+		}
+		buf += TEXT_DECODER.decode(value);
 
-export async function mutuals(dids: string[], init?: RequestInit): Promise<string[]> {
-	return (await call<{ mutuals: string[] }>('mutuals', { did: dids }, init)).mutuals;
+		let parts: string[];
+		[buf, ...parts] = buf.split('\n').reverse();
+		parts.reverse();
+
+		for (const part of parts) {
+			console.log(part);
+			yield JSON.parse(part);
+		}
+	}
 }

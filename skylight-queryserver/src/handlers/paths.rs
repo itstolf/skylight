@@ -13,6 +13,8 @@ fn paths_stream<'a>(
     ignore_ids: Vec<i32>,
     mut tx: sqlx::Transaction<'a, sqlx::Postgres>,
 ) -> impl futures_util::stream::Stream<Item = Result<std::string::String, anyhow::Error>> + 'a {
+    let mut path_dids = std::collections::HashMap::new();
+
     async_stream::try_stream! {
         sqlx::query!(
             r#"
@@ -41,7 +43,18 @@ fn paths_stream<'a>(
 
             let done = rows.len() < LIMIT as usize;
             for row in rows {
-                yield serde_json::to_string(&row.path)? + "\n";
+                let new_path_dids = crate::ids::get_dids_for_ids(&mut *tx, &row.path).await?;
+                path_dids.extend(new_path_dids);
+
+                yield serde_json::to_string(
+                    &row.path.into_iter()
+                        .map(|id| {
+                            path_dids
+                                .get(&id)
+                                .cloned()
+                                .ok_or_else(|| anyhow::format_err!("unknown id: {}", id))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?)? + "\n";
             }
             if done {
                 break;
