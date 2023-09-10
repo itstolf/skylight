@@ -25,7 +25,6 @@ type RateLimiter = governor::RateLimiter<
     governor::state::NotKeyed,
     governor::state::InMemoryState,
     governor::clock::QuantaClock,
-    governor::middleware::NoOpMiddleware<governor::clock::QuantaInstant>,
 >;
 
 struct DidIdAssginer {
