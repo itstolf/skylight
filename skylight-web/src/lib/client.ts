@@ -94,10 +94,10 @@ export async function* paths(
 		)
 	);
 	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-	const reader = resp.body!.getReader({ mode: 'byob' });
+	const reader = resp.body!.getReader();
 	let buf = '';
 	while (true) {
-		const { value, done } = await reader.read(new Uint8Array(32));
+		const { value, done } = await reader.read();
 		if (done) {
 			break;
 		}
