@@ -89,7 +89,7 @@
 			return;
 		}
 
-		for (const who in [source, target]) {
+		for (const who of [source, target]) {
 			if (!Object.prototype.hasOwnProperty.call(w, who)) {
 				state = { type: 'error', why: `sorry, i don't know who ${who} is :(` };
 				return;
