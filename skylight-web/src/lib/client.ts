@@ -36,7 +36,13 @@ export async function whois(
 	actors: string[],
 	init?: RequestInit
 ): Promise<Record<string, { alsoKnownAs: string[]; did: string }>> {
-	return await call('whois', { actor: actors }, init);
+	return (
+		await call<{ whois: Record<string, { alsoKnownAs: string[]; did: string }> }>(
+			'whois',
+			{ actor: actors },
+			init
+		)
+	).whois;
 }
 
 export async function neighborhood(
