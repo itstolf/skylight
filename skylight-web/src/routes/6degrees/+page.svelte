@@ -1,13 +1,19 @@
 <script lang="ts">
 	import { Collapse } from 'sveltestrap';
+	import { page } from '$app/stores';
 	import { akas, paths, whois } from '@/lib/client';
+	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 
 	const MAX_RESULTS = 100;
 
-	let source: string;
-	let target: string;
-	let ignore: string;
+	const url = $page.url;
+
+	let source: string = url.searchParams.get('source') ?? '';
+	let target: string = url.searchParams.get('target') ?? '';
 	let ignores: { did: string; alsoKnownAs: string[] }[] = [];
+
+	let ignore: string;
 	let showMoreSettings: boolean = false;
 
 	function toggleMoreSettings() {
@@ -72,14 +78,28 @@
 		}
 		return 0;
 	}
+	onMount(() => {
+		if (source != '' && target != '') {
+			submit();
+		}
+	});
 
 	async function submit() {
+		if (source == '' || target == '') {
+			return;
+		}
+
 		if (source.indexOf('.') == -1 && !source.match(/^did:/)) {
 			source += '.bsky.social';
 		}
 		if (target.indexOf('.') == -1 && !target.match(/^did:/)) {
 			target += '.bsky.social';
 		}
+
+		const q = new URLSearchParams($page.url.searchParams.toString());
+		q.set('source', source);
+		q.set('target', target);
+		goto(`?${q}`);
 
 		let w: Record<string, { alsoKnownAs: string[]; did: string }>;
 		try {
