@@ -31,12 +31,20 @@ function makeURL(endpoint: string, args: Record<string, string | string[] | null
 	return `${HOST}/_/${endpoint}?${makeURLSearchParams(args)}`;
 }
 
+async function doRequest(
+	endpoint: string,
+	args: Record<string, string | string[] | null>,
+	init?: RequestInit
+): Promise<Response> {
+	return throwForStatus(await fetch(makeURL(endpoint, args), init));
+}
+
 async function unaryCall<R>(
 	endpoint: string,
 	args: Record<string, string | string[] | null>,
 	init?: RequestInit
 ): Promise<R> {
-	return await throwForStatus(await fetch(makeURL(endpoint, args), init)).json();
+	return await (await doRequest(endpoint, args, init)).json();
 }
 
 const TEXT_DECODER = new TextDecoder();
@@ -45,7 +53,7 @@ async function* streamingCall<R>(
 	args: Record<string, string | string[] | null>,
 	init?: RequestInit
 ): AsyncIterable<R> {
-	const resp = throwForStatus(await fetch(makeURL(endpoint, args), init));
+	const resp = await doRequest(endpoint, args, init);
 	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 	const reader = resp.body!.getReader();
 	let buf = '';
