@@ -1,6 +1,11 @@
-import { throwForStatus } from './fetch';
-
 const HOST = 'https://bsky-stuff.tolf.gay';
+
+function throwForStatus(resp: Response): Response {
+	if (!resp.ok) {
+		throw resp;
+	}
+	return resp;
+}
 
 function makeURLSearchParams(args: Record<string, string | string[] | null>): URLSearchParams {
 	const q = new URLSearchParams();
