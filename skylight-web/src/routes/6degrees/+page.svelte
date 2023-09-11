@@ -36,8 +36,8 @@
 		if (ignore.indexOf('.') == -1 && !ignore.match(/^did:/)) {
 			ignore += '.bsky.social';
 		}
-		const r = await whois(ignore);
-		addIgnore(r);
+		const r = await whois([ignore]);
+		addIgnore(r[ignore]);
 		ignore = '';
 	}
 
@@ -81,40 +81,19 @@
 			target += '.bsky.social';
 		}
 
-		let sourceDid: string;
-		let targetDid: string;
-
+		let w: Record<string, { alsoKnownAs: string[]; did: string }>;
 		try {
-			const [sourceR, targetR] = await Promise.all([
-				(async () => {
-					try {
-						return await whois(source);
-					} catch (e) {
-						throw { who: source, e };
-					}
-				})(),
-				(async () => {
-					try {
-						return await whois(target);
-					} catch (e) {
-						throw { who: target, e };
-					}
-				})()
-			]);
-			sourceDid = sourceR.did;
-			targetDid = targetR.did;
-		} catch (wrappedE) {
-			const { who, e } = wrappedE as { who: string; e: any };
-			let msg = 'sorry, something broke :(';
-			if (e instanceof Response) {
-				switch (e.status) {
-					case 404:
-						msg = `sorry, i don't know who ${who} is :(`;
-						break;
-				}
-			}
-			state = { type: 'error', why: msg };
+			w = await whois([source, target]);
+		} catch (e) {
+			state = { type: 'error', why: 'sorry, something broke :(' };
 			return;
+		}
+
+		for (const who in [source, target]) {
+			if (!Object.prototype.hasOwnProperty.call(w, who)) {
+				state = { type: 'error', why: `sorry, i don't know who ${who} is :(` };
+				return;
+			}
 		}
 
 		ps = [];
@@ -124,8 +103,8 @@
 			const seen = new Set();
 			state = { type: 'running' };
 			for await (const path of paths(
-				sourceDid,
-				targetDid,
+				w[source].did,
+				w[target].did,
 				ignores.map(({ did }) => did),
 				{ signal: controller.signal }
 			)) {
