@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT actor_id as \"actor_id!\", subject_ids as \"subject_ids!\"\n        FROM follows.neighborhood($1, $2)\n        ",
+  "query": "--sql\n        SELECT actor_id as \"actor_id!\", subject_ids as \"subject_ids!\"\n        FROM follows.neighborhood($1, $2)\n        ",
   "describe": {
     "columns": [
       {
@@ -25,5 +25,5 @@
       null
     ]
   },
-  "hash": "c5ab1171ad69be3546836c58bb23a0749cb5e9fbd470aa21e3032cec79d0c74e"
+  "hash": "910ce467f1c8180c253d668736c178eba6b3832a2aaaf5683d44fc5f87ff569d"
 }

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "--sql\n                            INSERT INTO follows.edges (actor_id, rkey, subject_id)\n                            VALUES ($1, $2, $3)\n                            ON CONFLICT DO NOTHING\n                            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0a89af9451d088247887e1afeb9de016d4e788300fd695a4610abdddf183b519"
+}

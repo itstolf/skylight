@@ -17,7 +17,7 @@ fn paths_stream(
 
     async_stream::try_stream! {
         sqlx::query!(
-            r#"
+            r#"--sql
             SELECT follows.set_paths_generator($1, $2, $3)
             "#,
             source_id,
@@ -30,7 +30,7 @@ fn paths_stream(
         loop {
             const LIMIT: i32 = 1;
             let rows = sqlx::query!(
-                r#"
+                r#"--sql
                 SELECT
                     path AS "path!", nodes_expanded AS "nodes_expanded!"
                 FROM

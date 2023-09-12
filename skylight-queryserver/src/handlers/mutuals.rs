@@ -21,7 +21,7 @@ pub async fn mutuals(
         .collect::<Vec<_>>();
 
     let rows = sqlx::query!(
-        r#"
+        r#"--sql
         SELECT id AS "id!"
         FROM follows.mutuals($1, ARRAY[]::INT[])
         "#,

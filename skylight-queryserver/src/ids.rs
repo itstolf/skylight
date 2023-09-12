@@ -3,7 +3,7 @@ pub async fn get_ids_for_dids(
     dids: &[String],
 ) -> Result<std::collections::HashMap<String, i32>, sqlx::Error> {
     Ok(sqlx::query!(
-        r#"
+        r#"--sql
         SELECT did, id
         FROM follows.dids
         WHERE did = ANY($1)
@@ -22,7 +22,7 @@ pub async fn get_dids_for_ids(
     ids: &[i32],
 ) -> Result<std::collections::HashMap<i32, String>, sqlx::Error> {
     Ok(sqlx::query!(
-        r#"
+        r#"--sql
         SELECT id, did
         FROM follows.dids
         WHERE id = ANY($1)

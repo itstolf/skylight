@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "--sql\n            INSERT INTO follows.dids (did)\n            VALUES ($1)\n            ON CONFLICT (did) DO\n            UPDATE SET did = excluded.did\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d16a50c70491187dd3744d1e6287ae8e76e54f43b31d956a482de564e2fd340e"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "--sql\n                        INSERT INTO followscrawler.pending (did)\n                        VALUES ($1)\n                        ON CONFLICT DO\n                        NOTHING\n                        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7c02ce87207564ba64b35fde7a796ff5f7ae50c59921c251365b85ec38b0de19"
+}

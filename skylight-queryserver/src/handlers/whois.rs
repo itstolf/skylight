@@ -23,7 +23,7 @@ pub async fn whois(
 ) -> Result<axum::response::Json<Response>, crate::error::Error> {
     Ok(axum::response::Json(Response {
         whois: sqlx::query!(
-            r#"
+            r#"--sql
             SELECT a.actor AS "actor!", did, also_known_as
             FROM UNNEST($1::TEXT []) AS a(actor)
             INNER JOIN plc.dids ON

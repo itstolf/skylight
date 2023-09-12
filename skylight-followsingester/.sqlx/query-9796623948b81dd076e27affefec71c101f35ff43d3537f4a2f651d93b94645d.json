@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "--sql\n        INSERT INTO follows.cursor (cursor)\n        VALUES ($1)\n        ON CONFLICT ((0)) DO\n        UPDATE SET cursor = excluded.cursor\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9796623948b81dd076e27affefec71c101f35ff43d3537f4a2f651d93b94645d"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, did\n        FROM follows.dids\n        WHERE id = ANY($1)\n        ",
+  "query": "--sql\n        SELECT id, did\n        FROM follows.dids\n        WHERE id = ANY($1)\n        ",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "a58512cf0b214e9d56651b17e72c1576322eb27c987078955b07dc5c521b9601"
+  "hash": "4f3bcf74ab59c8a614590643ceb41e2605436b54065504b81ac8da7ae608e6fd"
 }

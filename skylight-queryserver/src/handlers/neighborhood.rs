@@ -37,7 +37,7 @@ pub async fn neighborhood(
         .collect::<Vec<_>>();
 
     let n = sqlx::query!(
-        r#"
+        r#"--sql
         SELECT COUNT(*) AS "count!"
         FROM follows.edges
         WHERE actor_id = ANY($1)
@@ -60,7 +60,7 @@ pub async fn neighborhood(
         .collect::<Vec<_>>();
 
     let rows = sqlx::query!(
-        r#"
+        r#"--sql
         SELECT actor_id as "actor_id!", subject_ids as "subject_ids!"
         FROM follows.neighborhood($1, $2)
         "#,

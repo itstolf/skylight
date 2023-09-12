@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "--sql\n                            WITH ids AS (\n                                SELECT id\n                                FROM follows.dids\n                                WHERE did = $1\n                            )\n                            DELETE FROM follows.edges\n                            WHERE\n                                actor_id IN (SELECT id FROM ids) AND\n                                rkey = $2\n                            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "047469f8d7d7398f277533662f4690e106f77157d5c458d15d63c8acfab8acb6"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id AS \"id!\"\n        FROM follows.mutuals($1, ARRAY[]::INT[])\n        ",
+  "query": "--sql\n        SELECT id AS \"id!\"\n        FROM follows.mutuals($1, ARRAY[]::INT[])\n        ",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       null
     ]
   },
-  "hash": "4c3c79514e4b992a555ad897b8cc310e77a02f92210f9728b646f94ece8a4867"
+  "hash": "4a7d47cdc7be1862fd3afe7a66ac05c046fec877f7f5ced2236dbaa5b8118193"
 }

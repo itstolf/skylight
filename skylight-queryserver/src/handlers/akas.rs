@@ -16,7 +16,7 @@ pub async fn akas(
 ) -> Result<axum::response::Json<Response>, crate::error::Error> {
     Ok(axum::response::Json(Response {
         akas: sqlx::query!(
-            r#"
+            r#"--sql
             SELECT did, also_known_as
             FROM plc.dids
             WHERE did = ANY($1)

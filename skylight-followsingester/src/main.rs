@@ -24,7 +24,7 @@ struct DidIdAssginer {
 impl DidIdAssginer {
     async fn assign(&mut self, did: &str) -> Result<i32, sqlx::Error> {
         Ok(sqlx::query!(
-            r#"
+            r#"--sql
             INSERT INTO follows.dids (did)
             VALUES ($1)
             ON CONFLICT (did) DO
@@ -172,7 +172,7 @@ async fn process_message(
                         let actor_id = did_id_assigner.assign(&commit.repo).await?;
                         let subject_id = did_id_assigner.assign(&record.subject).await?;
                         sqlx::query!(
-                            r#"
+                            r#"--sql
                             INSERT INTO follows.edges (actor_id, rkey, subject_id)
                             VALUES ($1, $2, $3)
                             ON CONFLICT DO NOTHING
@@ -193,7 +193,7 @@ async fn process_message(
                     }
                     "delete" => {
                         sqlx::query!(
-                            r#"
+                            r#"--sql
                             WITH ids AS (
                                 SELECT id
                                 FROM follows.dids
@@ -225,7 +225,7 @@ async fn process_message(
         }
         firehose::Message::Tombstone(tombstone) => {
             sqlx::query!(
-                r#"
+                r#"--sql
                 WITH ids AS (
                     SELECT id
                     FROM follows.dids
@@ -246,7 +246,7 @@ async fn process_message(
         firehose::Message::Migrate(migrate) => migrate.seq,
     };
     sqlx::query!(
-        r#"
+        r#"--sql
         INSERT INTO follows.cursor (cursor)
         VALUES ($1)
         ON CONFLICT ((0)) DO

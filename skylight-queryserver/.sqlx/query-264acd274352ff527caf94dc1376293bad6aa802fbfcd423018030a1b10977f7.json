@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id AS \"id!\"\n        FROM follows.incoming($1, ARRAY[]::INT[])\n        ",
+  "query": "--sql\n        SELECT id AS \"id!\"\n        FROM follows.incoming($1, ARRAY[]::INT[])\n        ",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       null
     ]
   },
-  "hash": "07866e5a25382c342c6afcb98b353eb5f18b05f25c49391c85da806fca1cc9d7"
+  "hash": "264acd274352ff527caf94dc1376293bad6aa802fbfcd423018030a1b10977f7"
 }

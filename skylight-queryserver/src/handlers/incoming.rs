@@ -21,7 +21,7 @@ pub async fn incoming(
         .collect::<Vec<_>>();
 
     let rows = sqlx::query!(
-        r#"
+        r#"--sql
         SELECT id AS "id!"
         FROM follows.incoming($1, ARRAY[]::INT[])
         "#,

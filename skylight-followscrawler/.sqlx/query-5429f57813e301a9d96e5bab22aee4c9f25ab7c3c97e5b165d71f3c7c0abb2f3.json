@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "--sql\n                    INSERT INTO followscrawler.cursor (cursor)\n                    VALUES ($1)\n                    ON CONFLICT ((0)) DO\n                    UPDATE SET cursor = excluded.cursor\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5429f57813e301a9d96e5bab22aee4c9f25ab7c3c97e5b165d71f3c7c0abb2f3"
+}

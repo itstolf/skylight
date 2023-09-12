@@ -34,7 +34,7 @@ struct DidIdAssginer {
 impl DidIdAssginer {
     async fn assign(&mut self, did: &str) -> Result<i32, sqlx::Error> {
         Ok(sqlx::query!(
-            r#"
+            r#"--sql
             INSERT INTO follows.dids (did)
             VALUES ($1)
             ON CONFLICT (did) DO
@@ -61,7 +61,7 @@ async fn worker_main(
         loop {
             let mut tx = conn.begin().await?;
             let did = if let Some(did) = sqlx::query!(
-                r#"
+                r#"--sql
                 DELETE FROM followscrawler.pending
                 WHERE
                     did = (
@@ -164,7 +164,7 @@ async fn worker_main(
                         let n = records.len();
                         let mut subtx = tx.begin().await?;
                         sqlx::query!(
-                            r#"
+                            r#"--sql
                             DELETE FROM follows.edges
                             WHERE actor_id = $1
                             "#,
@@ -175,7 +175,7 @@ async fn worker_main(
                         for (rkey, record) in records {
                             let subject_id = did_id_assigner.assign(&record.subject).await?;
                             sqlx::query!(
-                                r#"
+                                r#"--sql
                                 INSERT INTO follows.edges (actor_id, rkey, subject_id)
                                 VALUES ($1, $2, $3)
                                 ON CONFLICT DO NOTHING
@@ -203,7 +203,7 @@ async fn worker_main(
                         _ => {}
                     }
                     sqlx::query!(
-                        r#"
+                        r#"--sql
                         INSERT INTO followscrawler.errors (did, why)
                         VALUES ($1, $2)
                         "#,
@@ -305,7 +305,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 let mut tx = conn.begin().await?;
                 for repo in output.repos {
                     sqlx::query!(
-                        r#"
+                        r#"--sql
                         INSERT INTO followscrawler.pending (did)
                         VALUES ($1)
                         ON CONFLICT DO
@@ -320,7 +320,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 let c = output.cursor.unwrap_or_else(|| "".to_string());
                 let done = c.is_empty();
                 sqlx::query!(
-                    r#"
+                    r#"--sql
                     INSERT INTO followscrawler.cursor (cursor)
                     VALUES ($1)
                     ON CONFLICT ((0)) DO

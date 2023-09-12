@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "--sql\n            SELECT a.actor AS \"actor!\", did, also_known_as\n            FROM UNNEST($1::TEXT []) AS a(actor)\n            INNER JOIN plc.dids ON\n                (\n                    did = a.actor OR\n                    also_known_as && ARRAY[a.actor, 'at://' || a.actor]\n                ) AND\n                EXISTS (\n                    SELECT *\n                    FROM follows.dids\n                    WHERE follows.dids.did = plc.dids.did\n                )\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "actor!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "did",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "also_known_as",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "8bac3c17d81f569151b0b6d138022aac968acbff01e28a9c916892eaecea0dfc"
+}
