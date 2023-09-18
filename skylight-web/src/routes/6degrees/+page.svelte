@@ -11,7 +11,7 @@
 
 	let source: string = url.searchParams.get('source') ?? '';
 	let target: string = url.searchParams.get('target') ?? '';
-	let ignores: { did: string; alsoKnownAs: string[] }[] = [];
+	let ignores: string[] = url.searchParams.getAll('ignore');
 
 	let ignore: string;
 	let showMoreSettings: boolean = false;
@@ -20,12 +20,12 @@
 		showMoreSettings = !showMoreSettings;
 	}
 
-	function addIgnore(entry: { did: string; alsoKnownAs: string[] }) {
+	function addIgnore(actor: string) {
 		showMoreSettings = true;
-		if (ignores.some(({ did }) => did == entry.did)) {
+		if (ignores.indexOf(actor) != -1) {
 			return;
 		}
-		ignores.push(entry);
+		ignores.push(actor);
 		ignores = ignores;
 	}
 
@@ -42,8 +42,7 @@
 		if (ignore.indexOf('.') == -1 && !ignore.match(/^did:/)) {
 			ignore += '.bsky.social';
 		}
-		const r = await whois([ignore]);
-		addIgnore(r[ignore]);
+		addIgnore(ignore);
 		ignore = '';
 	}
 
@@ -96,14 +95,17 @@
 			target += '.bsky.social';
 		}
 
-		const q = new URLSearchParams($page.url.searchParams.toString());
+		const q = new URLSearchParams();
 		q.set('source', source);
 		q.set('target', target);
+		for (const actor of ignores) {
+			q.append('ignore', actor);
+		}
 		goto(`?${q}`);
 
 		let w: Record<string, { alsoKnownAs: string[]; did: string }>;
 		try {
-			w = await whois([source, target]);
+			w = await whois([source, target, ...ignores]);
 		} catch (e) {
 			state = { type: 'error', why: 'sorry, something broke :(' };
 			return;
@@ -125,7 +127,9 @@
 			for await (const path of paths(
 				w[source].did,
 				w[target].did,
-				ignores.map(({ did }) => did),
+				ignores.flatMap((actor) =>
+					Object.prototype.hasOwnProperty.call(w, actor) ? [w[actor].did] : []
+				),
 				{ signal: controller.signal }
 			)) {
 				const k = path.join(' ');
@@ -222,14 +226,7 @@
 					<h3 class="card-title">exclude list</h3>
 					<p>you can put usernames here to avoid searching through them</p>
 					<ul class="list-unstyled">
-						{#each ignores as ignore, i}
-							{@const handle = (() => {
-								let h = ignore.did;
-								if (ignore.alsoKnownAs && ignore.alsoKnownAs.length > 0) {
-									h = ignore.alsoKnownAs[0].replace(/^at:\/\//, '');
-								}
-								return h;
-							})()}
+						{#each ignores as actor, i}
 							<li class="mb-2">
 								<button
 									type="button"
@@ -237,7 +234,7 @@
 									style="user-select: none"
 									on:click={removeIgnore.bind(null, i)}>X</button
 								>
-								<a href="https://bsky.app/profile/{handle}" target="_blank">{handle}</a>
+								<a href="https://bsky.app/profile/{actor}" target="_blank">{actor}</a>
 							</li>
 						{/each}
 						<li>
