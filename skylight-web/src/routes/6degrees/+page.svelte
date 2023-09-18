@@ -14,7 +14,7 @@
 	let ignores: string[] = url.searchParams.getAll('ignore');
 
 	let ignore: string;
-	let showMoreSettings: boolean = false;
+	let showMoreSettings: boolean = ignores.length > 0;
 
 	function toggleMoreSettings() {
 		showMoreSettings = !showMoreSettings;
