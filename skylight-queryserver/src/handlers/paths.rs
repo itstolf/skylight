@@ -11,8 +11,8 @@ fn paths_stream(
     source_id: i32,
     target_id: i32,
     ignore_ids: Vec<i32>,
-    mut tx: sqlx::Transaction<sqlx::Postgres>,
-) -> impl futures_util::stream::Stream<Item = Result<std::string::String, anyhow::Error>> + '_ {
+    mut conn: sqlx::pool::PoolConnection<sqlx::Postgres>,
+) -> impl futures_util::stream::Stream<Item = Result<std::string::String, anyhow::Error>> {
     let mut path_dids = std::collections::HashMap::new();
 
     async_stream::try_stream! {
@@ -24,7 +24,7 @@ fn paths_stream(
             target_id,
             &ignore_ids,
         )
-        .execute(&mut *tx)
+        .execute(&mut *conn)
         .await?;
 
         loop {
@@ -38,12 +38,12 @@ fn paths_stream(
                 "#,
                 LIMIT
             )
-            .fetch_all(&mut *tx)
+            .fetch_all(&mut *conn)
             .await?;
 
             let done = rows.len() < LIMIT as usize;
             for row in rows {
-                let new_path_dids = crate::ids::get_dids_for_ids(&mut *tx, &row.path).await?;
+                let new_path_dids = crate::ids::get_dids_for_ids(&mut *conn, &row.path).await?;
                 path_dids.extend(new_path_dids);
 
                 yield serde_json::to_string(
@@ -98,16 +98,15 @@ pub async fn paths(
         .flat_map(|did| input_ids.get(&did).cloned())
         .collect::<Vec<_>>();
 
-    let tx = state.pool.begin().await?;
-
     let mut headers = axum::http::HeaderMap::new();
     headers.insert(
         "content-type",
         axum::http::HeaderValue::from_static("application/jsonl"),
     );
 
+    let conn = state.pool.acquire().await?;
     Ok((
         headers,
-        axum::body::StreamBody::new(paths_stream(source_id, target_id, ignore_ids, tx)),
+        axum::body::StreamBody::new(paths_stream(source_id, target_id, ignore_ids, conn)),
     ))
 }

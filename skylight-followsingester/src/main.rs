@@ -141,8 +141,6 @@ async fn process_message(
                     }
                 };
 
-                let now = time::OffsetDateTime::now_utc();
-
                 match op.action.as_str() {
                     "create" => {
                         let item = if let Some(item) = op.cid.and_then(|cid| items.get(&cid.into()))
@@ -185,6 +183,8 @@ async fn process_message(
                         )
                         .execute(&mut *tx)
                         .await?;
+
+                        let now = time::OffsetDateTime::now_utc();
                         tracing::info!(
                             action = "create follow",
                             seq = commit.seq,
@@ -212,6 +212,8 @@ async fn process_message(
                         )
                         .execute(&mut *tx)
                         .await?;
+
+                        let now = time::OffsetDateTime::now_utc();
                         tracing::info!(
                             action = "delete follow",
                             seq = commit.seq,
