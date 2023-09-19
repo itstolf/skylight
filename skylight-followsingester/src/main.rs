@@ -191,7 +191,7 @@ async fn process_message(
                             actor_did = commit.repo,
                             subject_did = record.subject,
                             rkey = rkey,
-                            lag = ?now - commit.time,
+                            lag = format!("{}s", (now - commit.time).as_seconds_f64()),
                         )
                     }
                     "delete" => {
@@ -217,7 +217,7 @@ async fn process_message(
                             seq = commit.seq,
                             actor_did = commit.repo,
                             rkey = rkey,
-                            lag = ?now - commit.time,
+                            lag = format!("{}s", (now - commit.time).as_seconds_f64()),
                         );
                     }
                     _ => {
