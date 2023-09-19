@@ -10,7 +10,8 @@ pub struct Commit {
     pub rebase: bool,
     pub repo: String,
     pub seq: i64,
-    pub time: String,
+    #[serde(deserialize_with = "time::serde::rfc3339::deserialize")]
+    pub time: time::OffsetDateTime,
     pub too_big: bool,
 }
 
@@ -20,7 +21,8 @@ pub struct Handle {
     pub did: String,
     pub handle: String,
     pub seq: i64,
-    pub time: String,
+    #[serde(deserialize_with = "time::serde::rfc3339::deserialize")]
+    pub time: time::OffsetDateTime,
 }
 
 #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -36,7 +38,8 @@ pub struct Migrate {
     pub did: String,
     pub migrate_to: Option<String>,
     pub seq: i64,
-    pub time: String,
+    #[serde(deserialize_with = "time::serde::rfc3339::deserialize")]
+    pub time: time::OffsetDateTime,
 }
 
 #[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -52,9 +55,9 @@ pub struct RepoOp {
 pub struct Tombstone {
     pub did: String,
     pub seq: i64,
-    pub time: String,
+    #[serde(deserialize_with = "time::serde::rfc3339::deserialize")]
+    pub time: time::OffsetDateTime,
 }
-
 pub enum Message {
     Commit(Commit),
     Handle(Handle),

@@ -141,6 +141,8 @@ async fn process_message(
                     }
                 };
 
+                let now = time::OffsetDateTime::now_utc();
+
                 match op.action.as_str() {
                     "create" => {
                         let item = if let Some(item) = op.cid.and_then(|cid| items.get(&cid.into()))
@@ -188,7 +190,8 @@ async fn process_message(
                             seq = commit.seq,
                             actor_did = commit.repo,
                             subject_did = record.subject,
-                            rkey = rkey
+                            rkey = rkey,
+                            time = ?commit.time,
                         )
                     }
                     "delete" => {
@@ -213,7 +216,8 @@ async fn process_message(
                             action = "delete follow",
                             seq = commit.seq,
                             actor_did = commit.repo,
-                            rkey = rkey
+                            rkey = rkey,
+                            time = ?commit.time,
                         );
                     }
                     _ => {
