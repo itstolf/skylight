@@ -9,9 +9,17 @@
 
 	const url = $page.url;
 
-	let source: string = url.searchParams.get('source') ?? '';
-	let target: string = url.searchParams.get('target') ?? '';
-	let ignores: string[] = url.searchParams.getAll('ignore');
+	let source: string = '';
+	let target: string = '';
+	let ignores: string[] = [];
+
+	function setParamsFromUrl() {
+		source = url.searchParams.get('source') ?? '';
+		target = url.searchParams.get('target') ?? '';
+		ignores = url.searchParams.getAll('ignore');
+	}
+
+	setParamsFromUrl();
 
 	let ignore: string;
 	let showMoreSettings: boolean = ignores.length > 0;
@@ -83,26 +91,7 @@
 		}
 	});
 
-	async function submit() {
-		if (source == '' || target == '') {
-			return;
-		}
-
-		if (source.indexOf('.') == -1 && !source.match(/^did:/)) {
-			source += '.bsky.social';
-		}
-		if (target.indexOf('.') == -1 && !target.match(/^did:/)) {
-			target += '.bsky.social';
-		}
-
-		const q = new URLSearchParams();
-		q.set('source', source);
-		q.set('target', target);
-		for (const actor of ignores) {
-			q.append('ignore', actor);
-		}
-		goto(`?${q}`);
-
+	async function run() {
 		let w: Record<string, { alsoKnownAs: string[]; did: string }>;
 		try {
 			w = await whois([source, target, ...ignores]);
@@ -159,6 +148,28 @@
 		} finally {
 			controller.abort();
 		}
+	}
+
+	async function submit() {
+		if (source == '' || target == '') {
+			return;
+		}
+
+		if (source.indexOf('.') == -1 && !source.match(/^did:/)) {
+			source += '.bsky.social';
+		}
+		if (target.indexOf('.') == -1 && !target.match(/^did:/)) {
+			target += '.bsky.social';
+		}
+
+		const q = new URLSearchParams();
+		q.set('source', source);
+		q.set('target', target);
+		for (const actor of ignores) {
+			q.append('ignore', actor);
+		}
+		goto(`?${q}`, { replaceState: true });
+		run();
 	}
 
 	function swap() {
