@@ -267,7 +267,10 @@ async fn process_message(
     .await?;
 
     let now = time::OffsetDateTime::now_utc();
-    metrics::histogram!("firehose.ingest_time", (now - time).as_seconds_f64());
+    metrics::histogram!(
+        "skylight_followsingester.ingest_delay",
+        (now - time).as_seconds_f64()
+    );
 
     tx.commit().await?;
     Ok(())
