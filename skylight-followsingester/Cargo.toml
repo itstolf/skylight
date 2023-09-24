@@ -11,6 +11,8 @@ atproto-repo = { path = "../atproto-repo" }
 ciborium = "0.2"
 clap = { version = "4", features = ["derive"] }
 futures = "0.3.28"
+metrics = "0.21"
+metrics-exporter-prometheus = { version = "0.12", features = ["http-listener"] }
 rs-car = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_bytes = "0.11"

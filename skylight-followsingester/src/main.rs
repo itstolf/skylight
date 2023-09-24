@@ -15,6 +15,9 @@ struct Args {
 
     #[arg(long, default_value = "wss://bsky.social")]
     firehose_host: String,
+
+    #[arg(long, default_value = "127.0.0.1:9000")]
+    prometheus_listen: std::net::SocketAddr,
 }
 
 struct DidIdAssginer {
@@ -44,9 +47,13 @@ async fn main() -> Result<(), anyhow::Error> {
     let subscriber = tracing_subscriber::FmtSubscriber::builder()
         .with_max_level(tracing::Level::INFO)
         .finish();
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    tracing::subscriber::set_global_default(subscriber)?;
 
     let args = Args::parse();
+
+    metrics_exporter_prometheus::PrometheusBuilder::new()
+        .with_http_listener(args.prometheus_listen)
+        .install()?;
 
     let conn_options = sqlx::postgres::PgConnectOptions::from_str(&args.dsn)?;
     let mut conn = sqlx::postgres::PgConnection::connect_with(&conn_options).await?;
@@ -110,7 +117,7 @@ async fn process_message(
     message: &[u8],
 ) -> Result<(), anyhow::Error> {
     let mut tx = conn.begin().await?;
-    let seq = match firehose::Message::parse(message)? {
+    let (seq, time) = match firehose::Message::parse(message)? {
         firehose::Message::Info(info) => {
             tracing::info!(name = info.name, message = info.message);
             return Ok(());
@@ -184,14 +191,12 @@ async fn process_message(
                         .execute(&mut *tx)
                         .await?;
 
-                        let now = time::OffsetDateTime::now_utc();
                         tracing::info!(
                             action = "create follow",
                             seq = commit.seq,
                             actor_did = commit.repo,
                             subject_did = record.subject,
                             rkey = rkey,
-                            lag = format!("{}s", (now - commit.time).as_seconds_f64()),
                         )
                     }
                     "delete" => {
@@ -213,13 +218,11 @@ async fn process_message(
                         .execute(&mut *tx)
                         .await?;
 
-                        let now = time::OffsetDateTime::now_utc();
                         tracing::info!(
                             action = "delete follow",
                             seq = commit.seq,
                             actor_did = commit.repo,
                             rkey = rkey,
-                            lag = format!("{}s", (now - commit.time).as_seconds_f64()),
                         );
                     }
                     _ => {
@@ -227,7 +230,7 @@ async fn process_message(
                     }
                 }
             }
-            commit.seq
+            (commit.seq, commit.time)
         }
         firehose::Message::Tombstone(tombstone) => {
             sqlx::query!(
@@ -246,10 +249,10 @@ async fn process_message(
             )
             .execute(&mut *tx)
             .await?;
-            tombstone.seq
+            (tombstone.seq, tombstone.time)
         }
-        firehose::Message::Handle(handle) => handle.seq,
-        firehose::Message::Migrate(migrate) => migrate.seq,
+        firehose::Message::Handle(handle) => (handle.seq, handle.time),
+        firehose::Message::Migrate(migrate) => (migrate.seq, migrate.time),
     };
     sqlx::query!(
         r#"--sql
@@ -262,6 +265,10 @@ async fn process_message(
     )
     .execute(&mut *tx)
     .await?;
+
+    let now = time::OffsetDateTime::now_utc();
+    metrics::histogram!("firehose.ingest_time", (now - time).as_seconds_f64());
+
     tx.commit().await?;
     Ok(())
 }
