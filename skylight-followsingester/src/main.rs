@@ -55,6 +55,12 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_http_listener(args.prometheus_listen)
         .install()?;
 
+    metrics::describe_histogram!(
+        "skylight_followsingester.ingest_delay",
+        metrics::Unit::Seconds,
+        "ingestion delay"
+    );
+
     let conn_options = sqlx::postgres::PgConnectOptions::from_str(&args.dsn)?;
     let mut conn = sqlx::postgres::PgConnection::connect_with(&conn_options).await?;
     let mut did_id_assigner = DidIdAssginer {
