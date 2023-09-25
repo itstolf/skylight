@@ -64,10 +64,6 @@ async function* streamingCall<R>(
 		}
 		buf += TEXT_DECODER.decode(value);
 
-		if (buf.indexOf('\n') == -1) {
-			continue;
-		}
-
 		const parts = buf.split('\n');
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		buf = parts.pop()!;
