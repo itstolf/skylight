@@ -55,7 +55,7 @@ export async function* paths(
 	ignoreDids: string[] = [],
 	init?: RequestInit
 ): AsyncIterable<string[]> {
-	for await (const part of streamingCall<string[]>(
+	yield* streamingCall<string[]>(
 		'paths',
 		{
 			sourceDid: sourceDid,
@@ -63,7 +63,5 @@ export async function* paths(
 			ignoreDid: ignoreDids
 		},
 		init
-	)) {
-		yield part;
-	}
+	);
 }
