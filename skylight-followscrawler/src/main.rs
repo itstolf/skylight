@@ -21,12 +21,6 @@ struct Args {
     only_crawl_queued_repos: bool,
 }
 
-type RateLimiter = governor::RateLimiter<
-    governor::state::NotKeyed,
-    governor::state::InMemoryState,
-    governor::clock::QuantaClock,
->;
-
 struct DidIdAssginer {
     conn: sqlx::postgres::PgConnection,
 }
@@ -52,7 +46,7 @@ impl DidIdAssginer {
 async fn worker_main(
     pds_host: String,
     client: reqwest::Client,
-    rl: std::sync::Arc<RateLimiter>,
+    rl: std::sync::Arc<governor::DefaultDirectRateLimiter>,
     queued_notify: std::sync::Arc<tokio::sync::Notify>,
     mut conn: sqlx::PgConnection,
     mut did_id_assigner: DidIdAssginer,
