@@ -39,7 +39,7 @@ async function doRequest(
 	return throwForStatus(await fetch(makeURL(endpoint, args), init));
 }
 
-async function* ndjson<R>(resp: Response): AsyncIterable<R> {
+async function* jsonl<R>(resp: Response): AsyncIterable<R> {
 	const textDecoder = new TextDecoder();
 
 	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -75,5 +75,5 @@ export async function* streamingCall<R>(
 	args: Record<string, string | string[] | null>,
 	init?: RequestInit
 ): AsyncIterable<R> {
-	yield* ndjson<R>(await doRequest(endpoint, args, init));
+	yield* jsonl<R>(await doRequest(endpoint, args, init));
 }
