@@ -13,7 +13,7 @@ struct Args {
     #[arg(long, default_value = "postgres:///skylight")]
     dsn: String,
 
-    #[arg(long, default_value = "wss://bsky.social")]
+    #[arg(long, default_value = "wss://bsky.network")]
     firehose_host: String,
 
     #[arg(long, default_value = "127.0.0.1:9000")]
