@@ -2,7 +2,7 @@
 #[serde(rename_all = "camelCase")]
 pub struct Commit {
     pub blobs: Vec<atproto_repo::dagcbor::DagCborCid>,
-    #[serde(with = "serde_bytes")]
+    #[serde(with = "serde_bytes", default)]
     pub blocks: Vec<u8>,
     pub commit: Option<atproto_repo::dagcbor::DagCborCid>,
     pub ops: Vec<RepoOp>,
